@@ -1,0 +1,7 @@
+{
+  "name": "@kubedoctor/diagnostic-worker",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {"dev": "node src/index.js"},
+  "dependencies": {"@kubedoctor/diagnostic-engine": "*"}
+}

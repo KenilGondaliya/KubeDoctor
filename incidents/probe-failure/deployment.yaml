@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubedoctor-probe-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubedoctor-probe-test
+  template:
+    metadata:
+      labels:
+        app: kubedoctor-probe-test
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27
+          readinessProbe:
+            httpGet:
+              path: /does-not-exist
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5

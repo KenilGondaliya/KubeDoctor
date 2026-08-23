@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubedoctor-image-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubedoctor-image-test
+  template:
+    metadata:
+      labels:
+        app: kubedoctor-image-test
+    spec:
+      containers:
+        - name: broken-image
+          image: example.invalid/kubedoctor-does-not-exist:999

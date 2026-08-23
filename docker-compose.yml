@@ -1,0 +1,19 @@
+services:
+  mongo:
+    image: mongo:8
+    container_name: kubedoctor-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - kubedoctor-mongo-data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: kubedoctor-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  kubedoctor-mongo-data:
