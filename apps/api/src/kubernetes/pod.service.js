@@ -1,6 +1,6 @@
-import { coreApi } from '@kubernetes/client-node';
+import { coreApi } from './client.js';
 
-export async function getNamespace(namespace = "default") {
+export async function getPods(namespace = "default") {
     const response = await coreApi.listNamespacedPod({
         namespace
     });

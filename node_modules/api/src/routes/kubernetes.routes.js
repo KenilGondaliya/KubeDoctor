@@ -1,5 +1,5 @@
 import express from "express";
-import { getNamespacesController, getPodsController } from "../controllers/kubernetes.controllers.js";
+import { getNamespacesController, getPodsController } from "../controllers/kubernetes.controller.js";
 
 
 const router = express.Router();

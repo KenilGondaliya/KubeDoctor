@@ -1,4 +1,4 @@
-import { coreApi } from '@kubernetes/client-node';
+import { coreApi } from './client.js';
 
 export async function getNamespaces() {
     const response = await coreApi.listNamespace();
