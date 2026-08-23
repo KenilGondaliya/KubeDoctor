@@ -1,0 +1,24 @@
+{
+  "name": "kubedoctor",
+  "version": "1.0.0",
+  "description": "Evidence-driven Kubernetes incident diagnosis system",
+  "main": "index.js",
+  "private": true,
+  "directories": {
+    "doc": "docs"
+  },
+  "workspaces": [
+    "apps/*",
+    "workers/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

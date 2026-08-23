@@ -1,0 +1,184 @@
+# Javascript Kubernetes Client information
+
+[![Build Status](https://github.com/kubernetes-client/javascript/workflows/Kubernetes%20Javascript%20Client%20-%20Validation/badge.svg)](https://github.com/kubernetes-client/javascript/actions)
+[![Client Capabilities](https://img.shields.io/badge/Kubernetes%20client-Gold-blue.svg?style=flat&colorB=FFD700&colorA=306CE8)](http://bit.ly/kubernetes-client-capabilities-badge)
+[![Client Support Level](https://img.shields.io/badge/kubernetes%20client-beta-green.svg?style=flat&colorA=306CE8)](http://bit.ly/kubernetes-client-support-badge)
+[![Build and Deploy Docs](https://github.com/kubernetes-client/javascript/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/kubernetes-client/javascript/actions/workflows/deploy-docs.yml)
+
+The Javascript clients for Kubernetes is implemented in
+[typescript](https://typescriptlang.org), but can be called from either
+Javascript or Typescript. The client is implemented for server-side use with Node.
+
+# Installation
+
+```console
+npm install @kubernetes/client-node
+```
+
+# Example code
+
+## List all pods
+
+```javascript
+const k8s = require('@kubernetes/client-node');
+
+const kc = new k8s.KubeConfig();
+kc.loadFromDefault();
+
+const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+
+k8sApi.listNamespacedPod({ namespace: 'default' }).then((res) => {
+    console.log(res);
+});
+```
+
+## Create a new namespace
+
+```javascript
+const k8s = require('@kubernetes/client-node');
+
+const kc = new k8s.KubeConfig();
+kc.loadFromDefault();
+
+const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+
+var namespace = {
+    metadata: {
+        name: 'test',
+    },
+};
+
+k8sApi.createNamespace({ body: namespace }).then(
+    (response) => {
+        console.log('Created namespace');
+        console.log(response);
+        k8sApi.readNamespace({ name: namespace.metadata.name }).then((response) => {
+            console.log(response);
+            k8sApi.deleteNamespace({ name: namespace.metadata.name });
+        });
+    },
+    (err) => {
+        console.log('Error!: ' + err);
+    },
+);
+```
+
+## Create a cluster configuration programmatically
+
+```javascript
+const k8s = require('@kubernetes/client-node');
+
+const cluster = {
+    name: 'my-server',
+    server: 'http://server.com',
+};
+
+const user = {
+    name: 'my-user',
+    password: 'some-password',
+};
+
+const context = {
+    name: 'my-context',
+    user: user.name,
+    cluster: cluster.name,
+};
+
+const kc = new k8s.KubeConfig();
+kc.loadFromOptions({
+    clusters: [cluster],
+    users: [user],
+    contexts: [context],
+    currentContext: context.name,
+});
+const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+...
+```
+
+# Documentation
+
+📖 **[View Documentation](https://kubernetes-client.github.io/javascript/)**
+
+Documentation is built with [Docusaurus](https://docusaurus.io/) and includes:
+
+- SDK Reference (KubeConfig, Watch, Informer, Exec, etc.)
+- Kubernetes API Reference (all API groups)
+- Version selector for historical releases
+- [Kubernetes API Reference](https://kubernetes.io/docs/reference/) — source-of-truth for all Kubernetes client libraries
+
+## Preview docs locally
+
+```bash
+# From the repo root — install the client library (needed by typedoc)
+npm install
+
+# Install docs dependencies and start the dev server
+cd docs
+npm install
+npm start          # opens http://localhost:3000 with hot-reload
+```
+
+`npm start` automatically runs the `prestart` hook which generates the API
+reference, SDK docs, and model pages from source before launching the dev
+server.  Changes to hand-written docs (e.g. `docs/docs/examples/`) are
+reflected instantly; changes to the generated sources require restarting the
+server.
+
+To do a full production build (which also validates all links):
+
+```bash
+cd docs
+npm run build      # generates + builds static site into docs/build/
+npm run serve      # preview the production build at http://localhost:3000
+```
+
+There are several more JS and TS examples in the [examples](https://github.com/kubernetes-client/javascript/tree/main/examples) directory.
+
+# Compatibility
+
+Prior to the `0.13.0` release, release versions did not track Kubernetes versions. Starting with the `0.13.0`
+release, we will increment the minor version whenever we update the minor Kubernetes API version
+(e.g. `1.19.x`) that this library is generated from.
+
+`request` was migrated to `node-fetch` as the HTTP(S) backend for release `1.0.0` tracked in #754
+
+`node-fetch` was migrated to `undici` which is the native node.js fetch package for release `2.0.0` tracked in #2306
+
+Generally speaking newer clients will work with older Kubernetes, but compatibility isn't 100% guaranteed.
+
+| client version | older versions | 1.28 | 1.29 | 1.30 | 1.31 | 1.32 | 1.33 | 1.34 |
+| -------------- | -------------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0.19.x         | -              | ✓    | x    | x    | x    | x    | x    | x    |
+| 0.20.x         | -              | +    | ✓    | x    | x    | x    | x    | x    |
+| 0.21.x         | -              | +    | +    | ✓    | x    | x    | x    | x    |
+| 0.22.x         | -              | +    | +    | +    | ✓    | x    | x    | x    |
+| 1.0.x          | -              | +    | +    | +    | +    | ✓    | x    | x    |
+| 1.1.x          | -              | +    | +    | +    | +    | ✓    | x    | x    |
+| 1.2.x          | -              | +    | +    | +    | +    | +    | ✓    | x    |
+| 1.3.x          | -              | +    | +    | +    | +    | +    | ✓    | x    |
+| 1.4.x          | -              | +    | +    | +    | +    | +    | +    | ✓    |
+
+Key:
+
+- `✓` Exactly the same features / API objects in both javascript-client and the Kubernetes
+  version.
+- `+` javascript-client has features or api objects that may not be present in the
+  Kubernetes cluster, but everything they have in common will work.
+- `-` The Kubernetes cluster has features the javascript-client library can't use
+  (additional API objects, etc).
+- `x` The Kubernetes cluster has no guarantees to support the API client of
+  this version, as it only promises _n_-2 version support. It is not tested,
+  and operations using API versions that have been deprecated and removed in
+  later server versions won't function correctly.
+
+# Known Issues
+
+- Multiple kubeconfigs are not completely supported.
+  Credentials are cached based on the kubeconfig username and these can collide across configs.
+  Here is the related [issue](https://github.com/kubernetes-client/javascript/issues/592).
+
+- In scenarios where multiple headers with the same key are required in a request, such as `Impersonate-Group`, avoid using `fetch`. Fetch will merge the values into a single header key, with the values as a single string vs a list of strings, `Impersonate-Group: "group1,group2"`. The workaround is to use a low-level library such as `https` to make the request. Refer to issue [#2474](https://github.com/kubernetes-client/javascript/issues/2474) for more details.
+
+# Contributing
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and contribution guidelines.
