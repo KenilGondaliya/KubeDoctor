@@ -28,7 +28,31 @@ export function detectPodIncident(pod) {
     return null;
   }
 
-  const reasons = getContainerReasons(pod);
+  const containerStatuses = pod.status?.containerStatuses ?? [];
+
+  const reasons = containerStatuses.flatMap((container) => {
+    const result = [];
+
+    const waitingReason = container.state?.waiting?.reason;
+
+    if (waitingReason) {
+      result.push(waitingReason);
+    }
+
+    const terminatedReason = container.state?.terminated?.reason;
+
+    if (terminatedReason) {
+      result.push(terminatedReason);
+    }
+
+    const previousTerminatedReason = container.lastState?.terminated?.reason;
+
+    if (previousTerminatedReason) {
+      result.push(previousTerminatedReason);
+    }
+
+    return result;
+  });
 
   if (reasons.includes("CrashLoopBackOff")) {
     return {
@@ -52,9 +76,7 @@ export function detectPodIncident(pod) {
       type: "POD_PENDING",
       severity: "MEDIUM",
     };
-  }
-
-  const containerStatuses = pod.status?.containerStatuses ?? [];
+}
 
   const probeFailure = containerStatuses.some((container) => {
     const waitingReason = container.state?.waiting?.reason;

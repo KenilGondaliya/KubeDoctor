@@ -12,56 +12,79 @@ export async function collectIncidentEvidence(
     const namespace = incident.namespace;
     const podName = incident.resource.name;
 
-    const podEvidence = await collectPodEvidence(
+    const evidence = [];
+
+    // 1. Pod state
+
+    const podState = await collectPodEvidence(
         namespace,
         podName
     );
 
-    const evidenceDocuments = [];
+    const podDocument = await Evidence.create({
+        incidentId: incident._id,
 
-    evidenceDocuments.push(
-        await Evidence.create({
-            incidentId: incident._id,
-            type: podEvidence.type,
-            resource: podEvidence.resource,
-            data: podEvidence
-        })
-    );
+        type: "POD_STATE",
 
-    for (
-        const container of podEvidence.containers
-    ) {
+        resource: {
+            kind: "Pod",
+            name: podName,
+            namespace
+        },
+
+        data: podState
+    });
+
+    evidence.push(podDocument);
+
+    // 2. Container logs
+
+    for (const container of podState.containers) {
         const logs = await collectPodLogs(
             namespace,
             podName,
             container.name
         );
 
-        evidenceDocuments.push(
-            await Evidence.create({
-                incidentId: incident._id,
-                type: logs.type,
-                resource: logs.resource,
-                data: logs
-            })
-        );
+        const logDocument = await Evidence.create({
+            incidentId: incident._id,
+
+            type: "POD_LOGS",
+
+            resource: {
+                kind: "Pod",
+                name: podName,
+                namespace
+            },
+
+            data: logs
+        });
+
+        evidence.push(logDocument);
     }
+
+    // --------------------------------------------------
+    // 3. Kubernetes events
+    // --------------------------------------------------
 
     const events =
         await collectNamespaceEvents(namespace);
 
-    evidenceDocuments.push(
-        await Evidence.create({
-            incidentId: incident._id,
-            type: events.type,
-            resource: {
-                kind: "Namespace",
-                name: namespace,
-                namespace
-            },
-            data: events
-        })
-    );
+    const eventDocument = await Evidence.create({
+        incidentId: incident._id,
 
-    return evidenceDocuments;
+        type: "KUBERNETES_EVENTS",
+
+        resource: {
+            kind: "Namespace",
+            name: namespace,
+            namespace
+        },
+
+        data: events
+    });
+
+    evidence.push(eventDocument);
+
+    return evidence;
 }

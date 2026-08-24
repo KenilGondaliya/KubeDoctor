@@ -3,7 +3,7 @@ import {
   getIncidents,
   getIncidentById,
 } from "../services/incident.service.js";
-import { Diagnosis } from "../models/diagnosis.model.js";
+import Diagnosis from "../models/diagnosis.model.js";
 
 export async function listIncidents(req, res) {
   try {

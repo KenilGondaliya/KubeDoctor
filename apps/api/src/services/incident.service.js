@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import Incident from "../models/incident.model.js";
-import { Diagnosis } from "../models/diagnosis.model.js";
+import Diagnosis from "../models/diagnosis.model.js";
 import { getPods, getPod, getPodLogs } from "../kubernetes/pod.service.js";
 import { getEvents } from "../kubernetes/event.service.js";
 import { getServices, getEndpoints } from "../kubernetes/service.service.js";
@@ -191,34 +191,26 @@ export async function createOrUpdateIncident({
     },
     {
       upsert: true,
-      returnDocument: "after"
+      returnDocument: "after",
     },
   );
 
   return incident;
 }
 
-export async function getIncidents({
-    status,
-    namespace,
-    limit = 50
-} = {}) {
-    const filter = {};
+export async function getIncidents({ status, namespace, limit = 50 } = {}) {
+  const filter = {};
 
-    if (status) {
-        filter.status = status;
-    }
+  if (status) {
+    filter.status = status;
+  }
 
-    if (namespace) {
-        filter.namespace = namespace;
-    }
+  if (namespace) {
+    filter.namespace = namespace;
+  }
 
-    return Incident.find(filter)
-        .sort({ lastDetectedAt: -1 })
-        .limit(limit)
-        .lean();
+  return Incident.find(filter).sort({ lastDetectedAt: -1 }).limit(limit).lean();
 }
-
 
 export async function getIncidentById(id) {
   return Incident.findById(id).lean();
