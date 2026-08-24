@@ -2,26 +2,86 @@ import mongoose from "mongoose";
 
 const incidentSchema = new mongoose.Schema(
   {
-    fingerprint: { type: String, required: true, unique: true },
-    cluster: { type: String, default: "minikube" },
-    namespace: String,
-    resource: { kind: String, name: String },
-    type: String,
+    clusterId: {
+      type: String,
+      default: "minikube",
+      index: true,
+    },
+
+    namespace: {
+      type: String,
+      required: true,
+      index: true,
+    },
+
+    resource: {
+      kind: {
+        type: String,
+        required: true,
+      },
+
+      name: {
+        type: String,
+        required: true,
+      },
+
+      uid: {
+        type: String,
+      },
+    },
+
+    type: {
+      type: String,
+      required: true,
+      index: true,
+    },
+
     severity: {
       type: String,
       enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
       default: "MEDIUM",
     },
+
     status: {
       type: String,
-      enum: ["OPEN", "DIAGNOSED", "RESOLVED"],
+      enum: [
+        "OPEN",
+        "INVESTIGATING",
+        "DIAGNOSED",
+        "REMEDIATING",
+        "VERIFYING",
+        "RESOLVED",
+        "FAILED",
+      ],
       default: "OPEN",
+      index: true,
     },
-    detectedAt: { type: Date, default: Date.now },
-    resolvedAt: Date,
+
+    fingerprint: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+
+    firstDetectedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    lastDetectedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    resolvedAt: {
+      type: Date,
+    },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
-export const Incident =
-  mongoose.models.Incident || mongoose.model("Incident", incidentSchema);
+const Incident = mongoose.model("Incident", incidentSchema);
+
+export default Incident;

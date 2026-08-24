@@ -1,16 +1,15 @@
 import crypto from "node:crypto";
-import { Incident } from "../models/incident.model.js";
+import Incident from "../models/incident.model.js";
 import { Diagnosis } from "../models/diagnosis.model.js";
 import { getPods, getPod, getPodLogs } from "../kubernetes/pod.service.js";
 import { getEvents } from "../kubernetes/event.service.js";
 import { getServices, getEndpoints } from "../kubernetes/service.service.js";
 import { diagnose } from "@kubedoctor/diagnostic-engine";
 
-function fingerprint({ namespace, pod, type }) {
-  return crypto
-    .createHash("sha256")
-    .update(`${namespace}:${pod}:${type}`)
-    .digest("hex");
+function createFingerprint({ clusterId, namespace, kind, name, type }) {
+  const value = [clusterId, namespace, kind, name, type].join(":");
+
+  return crypto.createHash("sha256").update(value).digest("hex");
 }
 
 async function diagnosePod(namespace, name) {
@@ -155,30 +154,39 @@ export async function listIncidents(limit = 100) {
   return Incident.find().sort({ detectedAt: -1 }).limit(limit).lean();
 }
 
-export async function createDetectedIncident({
-  cluster = "minikube",
+export async function createOrUpdateIncident({
+  clusterId = "minikube",
   namespace,
   resource,
   type,
-  serverity,
+  severity,
 }) {
-  const fp = fingerprint({
+  const fingerprint = createFingerprint({
+    clusterId,
     namespace,
-    pod: resource.name,
+    kind: resource.kind,
+    name: resource.name,
     type,
   });
 
+  const now = new Date();
+
   const incident = await Incident.findOneAndUpdate(
-    { fingerprint: fp },
+    { fingerprint },
     {
+      $set: {
+        lastDetectedAt: now,
+        severity,
+      },
+
       $setOnInsert: {
-        fingerprint: fp,
-        cluster,
+        clusterId,
         namespace,
         resource,
         type,
-        serverity,
+        fingerprint,
         status: "OPEN",
+        firstDetectedAt: now,
       },
     },
     {
@@ -188,4 +196,30 @@ export async function createDetectedIncident({
   );
 
   return incident;
+}
+
+export async function getIncidents({
+    status,
+    namespace,
+    limit = 50
+} = {}) {
+    const filter = {};
+
+    if (status) {
+        filter.status = status;
+    }
+
+    if (namespace) {
+        filter.namespace = namespace;
+    }
+
+    return Incident.find(filter)
+        .sort({ lastDetectedAt: -1 })
+        .limit(limit)
+        .lean();
+}
+
+
+export async function getIncidentById(id) {
+  return Incident.findById(id).lean();
 }
