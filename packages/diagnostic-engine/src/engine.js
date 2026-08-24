@@ -1,8 +1,8 @@
-import { diagnoseCrashLoop } from './rules/crash-loop.rule.js';
-import { diagnoseImagePull } from './rules/image-pull.rule.js';
-import { diagnosePending } from './rules/pending.rule.js';
-import { diagnoseProbeFailure } from './rules/probe.rule.js';
-import { diagnoseNoEndpoints } from './rules/no-endpoints.rule.js';
+import { diagnoseCrashLoop } from "./rules/crash-loop.rule.js";
+import { diagnoseImagePull } from "./rules/image-pull.rule.js";
+import { diagnosePending } from "./rules/pending.rule.js";
+import { diagnoseProbeFailure } from "./rules/probe.rule.js";
+import { diagnoseNoEndpoints } from "./rules/no-endpoints.rule.js";
 
 export function diagnose(context) {
   const rules = [
@@ -10,7 +10,7 @@ export function diagnose(context) {
     () => diagnoseImagePull(context),
     () => diagnosePending(context),
     () => diagnoseProbeFailure(context),
-    () => diagnoseNoEndpoints(context)
+    () => diagnoseNoEndpoints(context),
   ];
 
   for (const run of rules) {
@@ -19,9 +19,15 @@ export function diagnose(context) {
   }
 
   return {
-    rootCause: 'UNKNOWN',
+    rootCause: "UNKNOWN",
     confidence: 0.1,
     evidence: [],
-    recommendations: [{ action: 'COLLECT_MORE_EVIDENCE', risk: 'LOW', reason: 'No high-confidence rule matched the current evidence.' }]
+    recommendations: [
+      {
+        action: "COLLECT_MORE_EVIDENCE",
+        risk: "LOW",
+        reason: "No high-confidence rule matched the current evidence.",
+      },
+    ],
   };
 }
