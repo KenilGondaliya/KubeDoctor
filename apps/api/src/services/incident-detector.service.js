@@ -8,7 +8,27 @@ import { collectIncidentEvidence } from "./evidence.service.js";
 
 import { diagnoseIncident } from "./diagnosis.service.js";
 
+import { diagnosisQueue } from "@kubedoctor/shared/queues";
+
 let unsubscribe = null;
+
+await diagnosisQueue.add(
+  "investigate-incident",
+  {
+    incidentId: incident._id.toString(),
+  },
+  {
+    jobId: `incident:${incident._id}`,
+    attempts: 3,
+    backoff: {
+      type: "exponential",
+      delay: 2000,
+    },
+
+    removeOnComplete: 100,
+    removeOnFail: 500,
+  },
+);
 
 export function startIncidentDetector() {
   if (unsubscribe) {
