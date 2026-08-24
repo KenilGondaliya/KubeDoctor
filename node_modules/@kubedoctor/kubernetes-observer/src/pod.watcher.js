@@ -6,12 +6,14 @@ kc.loadFromDefault();
 
 const coreApi = kc.makeApiClient(k8s.CoreV1Api);
 
-let watcher;
 let stopped = false;
+let reconnectTimer = null;
+let resourceVersion = null;
 
 function normalizePodEvent(type, pod) {
   return {
     type: `POD_${type}`,
+
     resource: {
       kind: "Pod",
       name: pod.metadata?.name,
@@ -24,70 +26,111 @@ function normalizePodEvent(type, pod) {
   };
 }
 
-async function watchPods(namespace = "default") {
+async function initializeResourceVersion(namespace) {
+  const response = await coreApi.listNamespacedPod({
+    namespace,
+  });
+
+  resourceVersion = response.metadata?.resourceVersion ?? null;
+
+  console.log(`[Observer] Initial Pod resourceVersion: ${resourceVersion}`);
+}
+
+async function startWatch(namespace) {
   if (stopped) {
     return;
   }
 
-  watcher = new k8s.Watch(kc);
+  const watch = new k8s.Watch(kc);
 
-  console.log(`Starting to watch pods in namespace: ${namespace}`);
+  const query = {
+    timeoutSeconds: 300,
+  };
+
+  if (resourceVersion) {
+    query.resourceVersion = resourceVersion;
+  }
+
+  console.log(
+    `[Observer] Starting Pod watch for namespace: ${namespace}` +
+      ` from resourceVersion=${resourceVersion}`,
+  );
 
   try {
-    await watcher.watch(
+    await watch.watch(
       `/api/v1/namespaces/${namespace}/pods`,
-      {},
+      query,
+
       (type, pod) => {
+        resourceVersion = pod.metadata?.resourceVersion ?? resourceVersion;
+
         const event = normalizePodEvent(type, pod);
 
         console.log(
-          `[Observer] ${event.type}: ${event.resource.namespace}/${event.resource.name}`,
+          `[Observer] ${event.type}: ` +
+            `${event.resource.namespace}/` +
+            `${event.resource.name} ` +
+            `(rv=${resourceVersion})`,
         );
 
         kubernetesEventBus.emit("kubernetes-event", event);
       },
-      async (err) => {
+
+      (error) => {
         if (stopped) {
           return;
         }
 
-        console.error("[Observer] Pod watch error:", err);
-        setTimeout(() => {
-          watchPods(namespace).catch((err) => {
-            console.error("[Observer] Failed to restart pod watch:", err);
-          });
-        }, 5000);
+        console.log(
+          "[Observer] Pod watch ended:",
+          error?.message || "normal completion",
+        );
+
+        scheduleReconnect(namespace);
       },
     );
-  } catch (err) {
+  } catch (error) {
     if (stopped) {
       return;
     }
 
-    console.error("[Observer] Watch connection failed:", err);
+    console.error("[Observer] Pod watch failed:", error);
 
-    setTimeout(() => {
-      watchPods(namespace).catch((err) => {
-        console.error("[Observer] Failed to restart Pod watcher:", err);
-      });
-    }, 3000);
+    scheduleReconnect(namespace);
   }
+}
+
+function scheduleReconnect(namespace) {
+  if (stopped || reconnectTimer) {
+    return;
+  }
+
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+
+    try {
+      await startWatch(namespace);
+    } catch (error) {
+      console.error("[Observer] Reconnect failed:", error);
+    }
+  }, 2000);
 }
 
 export async function startPodWatcher(namespace = "default") {
   stopped = false;
 
-  await watchPods(namespace);
+  await initializeResourceVersion(namespace);
+
+  await startWatch(namespace);
 }
 
 export function stopPodWatcher() {
   stopped = true;
 
-  try {
-    watcher?.stop();
-  } catch (err) {
-    console.error("[Observer] Failed to stop Pod watcher:", err);
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
   }
 
-  watcher = undefined;
+  console.log("[Observer] Pod watcher stopped");
 }

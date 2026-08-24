@@ -191,7 +191,7 @@ export async function createOrUpdateIncident({
     },
     {
       upsert: true,
-      new: true,
+      returnDocument: "after"
     },
   );
 
