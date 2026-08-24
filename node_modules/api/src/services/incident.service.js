@@ -154,3 +154,38 @@ export async function listIncidents(limit = 100) {
   if (!process.env.MONGO_URI) return [];
   return Incident.find().sort({ detectedAt: -1 }).limit(limit).lean();
 }
+
+export async function createDetectedIncident({
+  cluster = "minikube",
+  namespace,
+  resource,
+  type,
+  serverity,
+}) {
+  const fp = fingerprint({
+    namespace,
+    pod: resource.name,
+    type,
+  });
+
+  const incident = await Incident.findOneAndUpdate(
+    { fingerprint: fp },
+    {
+      $setOnInsert: {
+        fingerprint: fp,
+        cluster,
+        namespace,
+        resource,
+        type,
+        serverity,
+        status: "OPEN",
+      },
+    },
+    {
+      upsert: true,
+      new: true,
+    },
+  );
+
+  return incident;
+}
