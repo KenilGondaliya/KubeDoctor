@@ -15,10 +15,13 @@
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
     "test": "npm test --workspaces --if-present"
-
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "dependencies": {
+    "bullmq": "^6.2.0",
+    "ioredis": "^6.0.0"
+  }
 }

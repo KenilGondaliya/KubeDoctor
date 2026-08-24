@@ -1,8 +1,12 @@
-import { kubernetesEventBus } from "@kubedoctor/kubernetes-observer/src/index.js";
+import { kubernetesEventBus } from "@kubedoctor/kubernetes-observer";
 
 import { detectPodIncident } from "@kubedoctor/diagnostic-engine";
 
 import { createOrUpdateIncident } from "./incident.service.js";
+
+import { collectIncidentEvidence } from "./evidence.service.js";
+
+import { diagnoseIncident } from "./diagnosis.service.js";
 
 let unsubscribe = null;
 
@@ -24,11 +28,13 @@ export function startIncidentDetector() {
       }
 
       console.log(
-        `[IncidentDetector] ${detection.type} detected: ` +
-          `${event.resource.namespace}/${event.resource.name}`,
+        `[IncidentDetector] ` +
+          `${detection.type} detected: ` +
+          `${event.resource.namespace}/` +
+          `${event.resource.name}`,
       );
 
-      const incident = await createOrUpdateIncident({
+      const result = await createOrUpdateIncident({
         namespace: event.resource.namespace,
 
         resource: {
@@ -38,16 +44,72 @@ export function startIncidentDetector() {
         },
 
         type: detection.type,
+
         severity: detection.severity,
       });
 
-      kubernetesEventBus.emit("incident-detected", {
-        incident,
-        detection,
-        sourceEvent: event,
-      });
+      const incident = result.incident;
+
+      const isNew = result.isNew;
 
       console.log(`[IncidentDetector] Incident ${incident._id}`);
+
+      if (!isNew) {
+        return;
+      }
+
+      // -----------------------------------------
+      // Don't immediately re-analyze every
+      // repeated Kubernetes event.
+      // Only investigate a newly created/open
+      // incident for this MVP.
+      // -----------------------------------------
+
+      if (incident.status !== "OPEN") {
+        return;
+      }
+
+      // -----------------------------------------
+      // Move incident into investigation state
+      // -----------------------------------------
+
+      incident.status = "INVESTIGATING";
+
+      await incident.save();
+
+      // -----------------------------------------
+      // Evidence collection
+      // -----------------------------------------
+
+      console.log(
+        `[Evidence] Collecting evidence ` + `for incident ${incident._id}`,
+      );
+
+      const evidence = await collectIncidentEvidence(incident);
+
+      console.log(
+        `[Evidence] Collected ` + `${evidence.length} evidence records`,
+      );
+
+      // -----------------------------------------
+      // Diagnosis
+      // -----------------------------------------
+
+      const diagnosis = await diagnoseIncident(incident);
+
+      incident.status = "DIAGNOSED";
+
+      await incident.save();
+
+      console.log(
+        `[RCA] ${diagnosis.rootCause.code} ` +
+          `confidence=${diagnosis.confidence.score}`,
+      );
+
+      kubernetesEventBus.emit("incident-diagnosed", {
+        incident,
+        diagnosis,
+      });
     } catch (error) {
       console.error("[IncidentDetector] Failed:", error);
     }

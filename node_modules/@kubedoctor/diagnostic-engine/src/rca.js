@@ -235,18 +235,25 @@ export function analyzeCrashLoop(evidence) {
 
   if (hypotheses.length === 0) {
     return {
+      summary:
+        "The currently collected evidence is insufficient to determine a reliable root cause.",
+
       rootCause: {
         code: "UNKNOWN",
+
         title: "Root cause could not be determined",
+
         description:
-          "The currently collected evidence is " +
-          "insufficient to determine a reliable root cause.",
+          "The currently collected evidence is insufficient " +
+          "to determine a reliable root cause.",
       },
 
       confidence: {
         score: 0.2,
         level: "LOW",
       },
+
+      signals: [],
 
       evidenceIds: [],
 
@@ -256,8 +263,8 @@ export function analyzeCrashLoop(evidence) {
         action: "COLLECT_MORE_EVIDENCE",
 
         description:
-          "Collect additional application logs, " +
-          "events, resource metrics, and dependency state.",
+          "Collect additional application logs, events, " +
+          "resource metrics, and dependency state.",
 
         risk: "LOW",
       },
@@ -271,6 +278,8 @@ export function analyzeCrashLoop(evidence) {
   const confidence = calculateConfidence(primary.score);
 
   return {
+    summary: primary.summary,
+
     rootCause: {
       code: primary.code,
       title: primary.title,
@@ -278,6 +287,8 @@ export function analyzeCrashLoop(evidence) {
     },
 
     confidence,
+
+    signals: primary.signals ?? [],
 
     evidenceIds: [],
 

@@ -169,33 +169,39 @@ export async function createOrUpdateIncident({
     type,
   });
 
-  const now = new Date();
+  const existing = await Incident.findOne({
+    fingerprint,
+  });
 
-  const incident = await Incident.findOneAndUpdate(
-    { fingerprint },
-    {
-      $set: {
-        lastDetectedAt: now,
-        severity,
-      },
+  if (existing) {
+    existing.lastDetectedAt = new Date();
 
-      $setOnInsert: {
-        clusterId,
-        namespace,
-        resource,
-        type,
-        fingerprint,
-        status: "OPEN",
-        firstDetectedAt: now,
-      },
-    },
-    {
-      upsert: true,
-      returnDocument: "after",
-    },
-  );
+    existing.severity = severity;
 
-  return incident;
+    await existing.save();
+
+    return {
+      incident: existing,
+      isNew: false,
+    };
+  }
+
+  const incident = await Incident.create({
+    clusterId,
+    namespace,
+    resource,
+    type,
+    severity,
+    fingerprint,
+    status: "OPEN",
+    firstDetectedAt: new Date(),
+    lastDetectedAt: new Date(),
+  });
+
+  return {
+    incident,
+    isNew: true,
+  };
 }
 
 export async function getIncidents({ status, namespace, limit = 50 } = {}) {

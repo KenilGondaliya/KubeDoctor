@@ -4,4 +4,4 @@ export { collectPodEvidence } from "./pod.evidence.js";
 
 export { collectPodLogs } from "./log.evidence.js";
 
-export { collectNamespaceEvents } from "./event.evidence.js";
+export { collectNamespaceEvents, collectPodEvents } from "./event.evidence.js";
