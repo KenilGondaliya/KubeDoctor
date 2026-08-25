@@ -1,19 +1,53 @@
+version: '3.8'
+
 services:
-  mongo:
-    image: mongo:8
-    container_name: kubedoctor-mongo
-    restart: unless-stopped
+  mongodb:
+    image: mongo:7.0
+    container_name: kubedoctor-mongodb
     ports:
       - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: kubedoctor
     volumes:
-      - kubedoctor-mongo-data:/data/db
+      - mongodb_data:/data/db
+    networks:
+      - kubedoctor-network
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: kubedoctor-redis
-    restart: unless-stopped
     ports:
       - "6379:6379"
+    networks:
+      - kubedoctor-network
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.dev
+    container_name: kubedoctor-api
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/kubedoctor
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-secret-key-change-me
+    volumes:
+      - ./apps/api:/app
+      - /app/node_modules
+      - ~/.kube:/root/.kube
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - kubedoctor-network
 
 volumes:
-  kubedoctor-mongo-data:
+  mongodb_data:
+
+networks:
+  kubedoctor-network:
+    driver: bridge
