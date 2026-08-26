@@ -1,9 +1,0 @@
-{
-  "name": "@kubedoctor/evidence-engine",
-  "version": "0.1.0",
-  "type": "module",
-  "exports": "./src/index.js",
-  "dependencies": {
-    "@kubernetes/client-node": "latest"
-  }
-}
