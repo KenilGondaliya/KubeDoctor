@@ -1,0 +1,18 @@
+ALTER TABLE clusters
+ADD COLUMN IF NOT EXISTS connection_type VARCHAR(30)
+NOT NULL DEFAULT 'kubeconfig';
+
+ALTER TABLE clusters
+ADD COLUMN IF NOT EXISTS kube_context VARCHAR(255);
+
+ALTER TABLE clusters
+ADD COLUMN IF NOT EXISTS namespace VARCHAR(255);
+
+ALTER TABLE clusters
+ADD COLUMN IF NOT EXISTS last_connected_at TIMESTAMPTZ;
+
+ALTER TABLE clusters
+ADD COLUMN IF NOT EXISTS last_error TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_clusters_status
+ON clusters(status);

@@ -9,6 +9,7 @@ import authRouter from "./modules/auth/auth.routes.js";
 
 import { errorHandler } from "./middleware/error.middleware.js";
 import workspaceRouter from "./modules/workspaces/workspace.routes.js";
+import clusterRouter from "./modules/clusters/cluster.routes.js";
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use(
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/workspaces", workspaceRouter);
+app.use("/api/v1/workspaces/:workspaceId/clusters", clusterRouter);
 app.use(errorHandler);
 
 app.get("/", (req, res) => {
