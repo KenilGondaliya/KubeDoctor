@@ -1,0 +1,16 @@
+{
+  "name": "@kubedoctor/observer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0",
+    "dotenv": "^17.2.1",
+    "nats": "^2.29.3",
+    "pg": "^8.16.3"
+  }
+}
