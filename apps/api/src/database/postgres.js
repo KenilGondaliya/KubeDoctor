@@ -19,6 +19,5 @@ db.on("error", (error) => {
 
 export async function checkDatabaseConnection() {
   const result = await db.query("SELECT NOW() AS now");
-
   return result.rows[0];
 }

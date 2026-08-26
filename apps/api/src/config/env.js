@@ -1,4 +1,9 @@
-import "./../config/";
+import "dotenv/config";
+
+console.log(
+  "[DEBUG] DATABASE_URL:",
+  process.env.DATABASE_URL?.replace(/:[^:@]+@/, ":****@")
+);
 
 const requiredEnv = [
   "DATABASE_URL",
