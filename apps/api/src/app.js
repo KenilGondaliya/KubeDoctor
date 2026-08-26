@@ -5,6 +5,11 @@ import rateLimit from "express-rate-limit";
 
 import healthRouter from "./routes/health.routes.js";
 
+import authRouter from "./modules/auth/auth.routes.js";
+
+import { errorHandler } from "./middleware/error.middleware.js";
+import workspaceRouter from "./modules/workspaces/workspace.routes.js";
+
 const app = express();
 
 app.disable("x-powered-by");
@@ -36,6 +41,10 @@ app.use(
     limit: 100,
   }),
 );
+
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/workspaces", workspaceRouter);
+app.use(errorHandler);
 
 app.get("/", (req, res) => {
   res.json({
