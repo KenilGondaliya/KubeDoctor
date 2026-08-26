@@ -1,59 +1,33 @@
-import {
-  createCoreV1Api
-} from "../../config/kubernetes.js";
+import { createCoreV1Api } from "../../config/kubernetes.js";
 
+export async function testClusterConnection(kubeContext) {
+  const coreApi = createCoreV1Api(kubeContext);
 
-export async function testClusterConnection(
-  kubeContext
-) {
-  const coreApi =
-    createCoreV1Api(kubeContext);
-
-
-  const [
-    nodesResult,
-    namespacesResult
-  ] = await Promise.all([
+  const [nodesResult, namespacesResult] = await Promise.all([
     coreApi.listNode(),
-    coreApi.listNamespace()
+    coreApi.listNamespace(),
   ]);
 
-
-  const nodes =
-    nodesResult?.body?.items ||
-    nodesResult?.items ||
-    [];
-
+  const nodes = nodesResult?.body?.items || nodesResult?.items || [];
 
   const namespaces =
-    namespacesResult?.body?.items ||
-    namespacesResult?.items ||
-    [];
-
+    namespacesResult?.body?.items || namespacesResult?.items || [];
 
   return {
     connected: true,
 
     kubernetes: {
-      context: kubeContext
+      context: kubeContext,
     },
 
-    nodes:
-      nodes.map(
-        (node) => ({
-          name: node.metadata?.name,
+    nodes: nodes.map((node) => ({
+      name: node.metadata?.name,
 
-          ready:
-            node.status?.conditions
-              ?.find(
-                (condition) =>
-                  condition.type === "Ready"
-              )
-              ?.status === "True"
-        })
-      ),
+      ready:
+        node.status?.conditions?.find((condition) => condition.type === "Ready")
+          ?.status === "True",
+    })),
 
-    namespaceCount:
-      namespaces.length
+    namespaceCount: namespaces.length,
   };
 }
