@@ -1,0 +1,9 @@
+{
+  "name": "@kubedoctor/kubernetes-observer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0"
+  }
+}
