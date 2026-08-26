@@ -1,64 +1,16 @@
 import Redis from "ioredis";
-import logger from "../utils/logger.js"
+import { env } from "./env.js";
 
-class RedisClient {
-  constructor() {
-    this.client = null;
-    this.isConnected = false;
-  }
+export const redis = new Redis(env.redisUrl);
 
-  async connect() {
-    try {
-      const url = process.env.REDIS_URL || 'redis://localhost:6379';
-      
-      this.client = Redis.createClient({
-        url,
-        retryStrategy: (times) => {
-          const delay = Math.min(times * 50, 2000);
-          return delay;
-        }
-      });
+redis.on("connect", () => {
+  console.log("[Redis] Connected");
+});
 
-      this.client.on('error', (error) => {
-        logger.error('Redis error:', error);
-        this.isConnected = false;
-      });
+redis.on("error", (error) => {
+  console.error("[Redis] Error:", error);
+});
 
-      this.client.on('connect', () => {
-        logger.info('Redis connected');
-        this.isConnected = true;
-      });
-
-      this.client.on('end', () => {
-        logger.warn('Redis disconnected');
-        this.isConnected = false;
-      });
-
-      await this.client.connect();
-      
-      return this.client;
-    } catch (error) {
-      logger.error('Redis connection failed:', error);
-      throw error;
-    }
-  }
-
-  async disconnect() {
-    try {
-      if (this.client) {
-        await this.client.quit();
-        this.isConnected = false;
-        logger.info('Redis disconnected');
-      }
-    } catch (error) {
-      logger.error('Redis disconnect error:', error);
-      throw error;
-    }
-  }
-
-  getClient() {
-    return this.client;
-  }
+export async function checkRedisConnection() {
+  return redis.ping();
 }
-
-module.exports = new RedisClient();
