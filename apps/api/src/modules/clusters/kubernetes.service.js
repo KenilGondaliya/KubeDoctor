@@ -1,6 +1,5 @@
 import {
-  createCoreV1Api,
-  createAppsV1Api
+  createCoreV1Api
 } from "../../config/kubernetes.js";
 
 
@@ -10,32 +9,37 @@ export async function testClusterConnection(
   const coreApi =
     createCoreV1Api(kubeContext);
 
-  const appsApi =
-    createAppsV1Api(kubeContext);
-
 
   const [
-    versionResult,
     nodesResult,
     namespacesResult
   ] = await Promise.all([
-    coreApi.getAPIVersions(),
     coreApi.listNode(),
     coreApi.listNamespace()
   ]);
+
+
+  const nodes =
+    nodesResult?.body?.items ||
+    nodesResult?.items ||
+    [];
+
+
+  const namespaces =
+    namespacesResult?.body?.items ||
+    namespacesResult?.items ||
+    [];
 
 
   return {
     connected: true,
 
     kubernetes: {
-      versions:
-        versionResult.body
-          ?.versions || []
+      context: kubeContext
     },
 
     nodes:
-      nodesResult.body.items.map(
+      nodes.map(
         (node) => ({
           name: node.metadata?.name,
 
@@ -50,6 +54,6 @@ export async function testClusterConnection(
       ),
 
     namespaceCount:
-      namespacesResult.body.items.length
+      namespaces.length
   };
 }

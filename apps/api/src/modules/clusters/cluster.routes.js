@@ -20,20 +20,14 @@ import {
   requireMinimumRole
 } from "../../middleware/rbac.middleware.js";
 
-
-const router = Router();
-
+const router = Router({
+  mergeParams: true
+});
 
 router.use(authenticate);
-
 router.use(requireWorkspace);
 
-
-router.get(
-  "/",
-  list
-);
-
+router.get("/", list);
 
 router.post(
   "/",
@@ -41,24 +35,14 @@ router.post(
   create
 );
 
+router.get("/:clusterId", get);
 
-router.get(
-  "/:clusterId",
-  get
-);
-
-
-router.post(
-  "/:clusterId/test",
-  test
-);
-
+router.post("/:clusterId/test", test);
 
 router.delete(
   "/:clusterId",
   requireMinimumRole("Admin"),
   remove
 );
-
 
 export default router;
