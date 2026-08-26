@@ -1,27 +1,16 @@
 {
   "name": "kubedoctor",
-  "version": "1.0.0",
-  "description": "Evidence-driven Kubernetes incident diagnosis system",
-  "main": "index.js",
+  "version": "0.1.0",
   "private": true,
-  "directories": {
-    "doc": "docs"
-  },
+  "type": "module",
   "workspaces": [
     "apps/*",
-    "workers/*",
+    "services/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
-    "test": "npm test --workspaces --if-present"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
-  "dependencies": {
-    "bullmq": "^6.2.0",
-    "ioredis": "^6.0.0"
+    "dev:api": "npm --workspace apps/api run dev",
+    "start:api": "npm --workspace apps/api run start",
+    "test": "npm run test --workspaces"
   }
 }
