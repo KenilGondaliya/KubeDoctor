@@ -39,30 +39,47 @@ export class Reconciler {
         appsApi.listReplicaSetForAllNamespaces(),
       ]);
 
-    await this.publishSnapshot("Pod", pods.body.items);
+    await this.publishSnapshot("Pod", pods.body?.items ?? pods.items ?? []);
 
-    await this.publishSnapshot("Namespace", namespaces.body.items);
+    await this.publishSnapshot(
+      "Namespace",
+      namespaces.body?.items ?? namespaces.items ?? [],
+    );
 
-    await this.publishSnapshot("Node", nodes.body.items);
+    await this.publishSnapshot("Node", nodes.body?.items ?? nodes.items ?? []);
 
-    await this.publishSnapshot("Service", services.body.items);
+    await this.publishSnapshot(
+      "Service",
+      services.body?.items ?? services.items ?? [],
+    );
 
-    await this.publishSnapshot("Deployment", deployments.body.items);
+    await this.publishSnapshot(
+      "Deployment",
+      deployments.body?.items ?? deployments.items ?? [],
+    );
 
-    await this.publishSnapshot("ReplicaSet", replicasets.body.items);
+    await this.publishSnapshot(
+      "ReplicaSet",
+      replicasets.body?.items ?? replicasets.items ?? [],
+    );
 
     console.log(`[Reconciler] Completed ${this.clusterId}`);
   }
 
   async publishSnapshot(kind, resources) {
+    console.log(
+      `[Reconciler] Publishing ${kind}: ${resources.length} resources`,
+    );
+
     for (const object of resources) {
       const event = normalizeResourceEvent({
         clusterId: this.clusterId,
-
         type: "RECONCILE",
-
+        kind,
         object,
       });
+
+      console.log("[Reconciler] Event resource:", event.resource);
 
       await publishResourceEvent(event);
     }
@@ -73,15 +90,11 @@ export class Reconciler {
 
     await this.reconcile();
 
-    this.timer = setInterval(
-      () => {
-        this.reconcile().catch((error) => {
-          console.error("[Reconciler] Failed:", error);
-        });
-      },
-
-      this.intervalMs,
-    );
+    this.timer = setInterval(() => {
+      this.reconcile().catch((error) => {
+        console.error("[Reconciler] Failed:", error);
+      });
+    }, this.intervalMs);
   }
 
   stop() {
