@@ -1,11 +1,6 @@
 import crypto from "node:crypto";
 
-export function normalizeResourceEvent({
-  clusterId,
-  type,
-  kind,
-  object
-}) {
+export function normalizeResourceEvent({ clusterId, type, object }) {
   const metadata = object?.metadata || {};
 
   return {
@@ -22,7 +17,7 @@ export function normalizeResourceEvent({
     resource: {
       apiVersion: object?.apiVersion || null,
 
-      kind: kind || object?.kind || null,
+      kind: object?.kind || null,
 
       name: metadata.name || null,
 
@@ -34,13 +29,21 @@ export function normalizeResourceEvent({
 
       labels: metadata.labels || {},
 
-      annotations: metadata.annotations || {}
+      annotations: metadata.annotations || {},
+
+      metadata,
+
+      spec: object?.spec || {},
+
+      status: object?.status || {},
+
+      raw: object,
     },
 
     source: {
       system: "kubernetes",
 
-      observer: "kubedoctor-observer"
-    }
+      observer: "kubedoctor-observer",
+    },
   };
 }

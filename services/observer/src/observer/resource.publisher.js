@@ -1,4 +1,5 @@
 import { publishEvent } from "../infrastructure/nats.js";
+import { upsertSnapshot } from "../topology/snapshot.repository.js";
 
 export async function publishResourceEvent(event) {
   if (!event) {
@@ -22,6 +23,8 @@ export async function publishResourceEvent(event) {
       `[Observer] Resource is missing name: ${JSON.stringify(event.resource)}`,
     );
   }
+
+  await upsertSnapshot(event);
 
   const subject = `kubedoctor.k8s.resource.${event.resource.kind.toLowerCase()}`;
 

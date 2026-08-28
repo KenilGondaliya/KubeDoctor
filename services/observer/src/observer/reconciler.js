@@ -4,6 +4,8 @@ import { normalizeResourceEvent } from "../../../../packages/kubernetes-observer
 
 import { publishResourceEvent } from "./resource.publisher.js";
 
+import { rebuildTopology } from "../topology/topology.service.js";
+
 export class Reconciler {
   constructor({ kubeContext, clusterId, intervalMs }) {
     this.kubeContext = kubeContext;
@@ -62,6 +64,8 @@ export class Reconciler {
       "ReplicaSet",
       replicasets.body?.items ?? replicasets.items ?? [],
     );
+
+    await rebuildTopology(this.clusterId);
 
     console.log(`[Reconciler] Completed ${this.clusterId}`);
   }
