@@ -6,6 +6,11 @@ import { Reconciler } from "./reconciler.js";
 
 import { env } from "../config/env.js";
 
+import {
+  startIncidentConsumer,
+  stopIncidentConsumer,
+} from "../incidents/incident.consumer.js";
+
 export class ObserverService {
   constructor({ clusterId, kubeContext }) {
     this.clusterId = clusterId;
@@ -32,6 +37,8 @@ export class ObserverService {
   async start() {
     console.log(`[Observer] Starting ${this.clusterId}`);
 
+    await startIncidentConsumer();
+
     await this.reconciler.start();
 
     this.watchManager.start().catch((error) => {
@@ -42,6 +49,8 @@ export class ObserverService {
   }
 
   async stop() {
+    await stopIncidentConsumer();
+
     await this.watchManager.stop();
 
     this.reconciler.stop();

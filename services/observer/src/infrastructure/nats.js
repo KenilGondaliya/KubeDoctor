@@ -75,3 +75,10 @@ export async function closeNats() {
 
   manager = undefined;
 }
+export function getJetStream() {
+  if (!jetstream) {
+    throw new Error("NATS JetStream is not initialized");
+  }
+
+  return jetstream;
+}
