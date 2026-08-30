@@ -169,3 +169,68 @@ export function collectPodEvidence({ incident, snapshot }) {
 
   return evidence;
 }
+
+export function collectKubernetesEventEvidence({ events }) {
+  return events.map((event) => {
+    const rawEvent = event.resource?.raw || event.resource || {};
+
+    const involvedObject = rawEvent.involvedObject || {};
+
+    return {
+      evidenceType: EvidenceType.KUBERNETES_EVENT,
+
+      sourceType: "kubernetes.event",
+
+      sourceUid: event.uid,
+
+      sourceKind: "Event",
+
+      sourceName: event.name,
+
+      namespace: event.namespace,
+
+      summary: `${rawEvent.reason || "Kubernetes event"}: ${
+        rawEvent.message || "No message"
+      }`,
+
+      data: {
+        reason: rawEvent.reason || null,
+
+        message: rawEvent.message || null,
+
+        type: rawEvent.type || null,
+
+        involvedObject: {
+          uid: involvedObject.uid || null,
+
+          kind: involvedObject.kind || null,
+
+          name: involvedObject.name || null,
+
+          namespace: involvedObject.namespace || null,
+        },
+
+        firstTimestamp: rawEvent.firstTimestamp || null,
+
+        lastTimestamp: rawEvent.lastTimestamp || null,
+
+        eventTime: rawEvent.eventTime || null,
+
+        count: rawEvent.count || null,
+
+        series: rawEvent.series || null,
+      },
+
+      confidence: 0.95,
+
+      /*
+       * Event evidence supports the incident
+       * when it is directly associated with
+       * the affected resource.
+       */
+      supports: true,
+
+      observedAt: new Date(),
+    };
+  });
+}
