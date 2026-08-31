@@ -1,8 +1,13 @@
-import { detectIncident, isCrashLoopResolved } from "./incident.detector.js";
+import {
+  detectIncident,
+  isIncidentResolved,
+} from "./incident.detector.js";
 
 import { db } from "../config/database.js";
 
-import { resolveWorkloadIdentity } from "./workload.resolver.js";
+import {
+  resolveWorkloadIdentity,
+} from "./workload.resolver.js";
 
 import {
   findOpenIncidentByWorkload,
@@ -13,71 +18,115 @@ import {
   resolveIncidentByWorkload,
 } from "./incident.repository.js";
 
-import { collectIncidentEvidence } from "../evidence/evidence.service.js";
+import {
+  collectIncidentEvidence,
+} from "../evidence/evidence.service.js";
 
-import { runDiagnosis } from "../diagnosis/diagnosis.service.js";
+import {
+  runDiagnosis,
+} from "../diagnosis/diagnosis.service.js";
 
+
+/**
+ * Load all current Kubernetes resource snapshots
+ * for one cluster.
+ */
 async function loadClusterResources(clusterId) {
   const result = await db.query(
     `
-      SELECT
-        uid,
-        kind,
-        name,
-        namespace,
-        resource,
-        labels,
-        annotations
-      FROM resource_snapshots
-      WHERE cluster_id = $1
-      `,
+    SELECT
+      uid,
+      kind,
+      name,
+      namespace,
+      resource,
+      labels,
+      annotations
+    FROM resource_snapshots
+    WHERE cluster_id = $1
+    `,
     [clusterId],
   );
 
   return result.rows;
 }
 
+
 /**
- * Resolve workload identity.
+ * Resolve the logical workload for a resource.
  *
- * Reconciliation publishes Pods before ReplicaSets
- * and Deployments, so retry briefly while the
- * ownership chain becomes available in snapshots.
+ * Example:
+ *
+ * Pod
+ *   ↓
+ * ReplicaSet
+ *   ↓
+ * Deployment
+ *
+ * Reconciliation may persist a Pod before its
+ * owner resources, therefore we retry briefly.
  */
 async function resolveWorkloadWithRetry({
   event,
   attempts = 5,
   delayMs = 500,
 }) {
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    const resources = await loadClusterResources(event.clusterId);
+  for (
+    let attempt = 1;
+    attempt <= attempts;
+    attempt++
+  ) {
+    const resources =
+      await loadClusterResources(
+        event.clusterId,
+      );
 
-    const workload = resolveWorkloadIdentity({
-      resource: {
-        uid: event.resource.uid,
+    const workload =
+      resolveWorkloadIdentity({
+        resource: {
+          uid:
+            event.resource.uid,
 
-        kind: event.resource.kind,
+          kind:
+            event.resource.kind,
 
-        name: event.resource.name,
+          name:
+            event.resource.name,
 
-        metadata: event.resource.metadata,
+          metadata:
+            event.resource.metadata,
 
-        resource: event.resource,
-      },
+          resource:
+            event.resource,
+        },
 
-      resources,
-    });
+        resources,
+      });
 
     /*
-     * We successfully resolved the resource
-     * to a workload.
+     * Successfully resolved to a higher-level
+     * workload such as Deployment/StatefulSet/etc.
      */
-    if (workload && workload.uid && workload.kind !== "Pod") {
+    if (
+      workload?.uid &&
+      workload.kind !== "Pod"
+    ) {
       return workload;
     }
 
-    if (attempt < attempts) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    /*
+     * Owner resources may not have been persisted yet.
+     */
+    if (
+      attempt < attempts
+    ) {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            delayMs,
+          ),
+      );
     }
   }
 
@@ -85,150 +134,300 @@ async function resolveWorkloadWithRetry({
    * Standalone resource fallback.
    */
   return {
-    uid: event.resource.uid,
+    uid:
+      event.resource.uid,
 
-    kind: event.resource.kind,
+    kind:
+      event.resource.kind,
 
-    name: event.resource.name,
+    name:
+      event.resource.name,
   };
 }
 
+
 /**
- * Process one normalized Kubernetes event.
+ * Determine whether any currently stored Pod
+ * belonging to this workload is in CrashLoopBackOff.
+ *
+ * This prevents a healthy sibling Pod from resolving
+ * a workload-level incident while another Pod is still
+ * failing.
+ */
+async function hasActiveCrashLoopForWorkload({
+  clusterId,
+  workloadUid,
+}) {
+  const resources =
+    await loadClusterResources(
+      clusterId,
+    );
+
+  for (
+    const resource
+    of resources
+  ) {
+    if (
+      resource.kind !== "Pod"
+    ) {
+      continue;
+    }
+
+    const workload =
+      resolveWorkloadIdentity({
+        resource,
+        resources,
+      });
+
+    if (
+      workload?.uid !==
+      workloadUid
+    ) {
+      continue;
+    }
+
+    const containerStatuses =
+      resource.resource
+        ?.status
+        ?.containerStatuses ||
+      [];
+
+    const crashing =
+      containerStatuses.some(
+        (container) =>
+          container?.state
+            ?.waiting
+            ?.reason ===
+          "CrashLoopBackOff",
+      );
+
+    if (crashing) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
+/**
+ * Convert a normalized event into the snapshot
+ * structure expected by the Evidence Engine.
+ */
+function buildEvidenceSnapshot(event) {
+  return {
+    uid:
+      event.resource.uid,
+
+    kind:
+      event.resource.kind,
+
+    name:
+      event.resource.name,
+
+    namespace:
+      event.resource.namespace,
+
+    labels:
+      event.resource.labels,
+
+    resource_version:
+      event.resource.resourceVersion,
+
+    resource:
+      event.resource,
+  };
+}
+
+
+/**
+ * Process one normalized Kubernetes resource event.
+ *
+ * Flow:
+ *
+ * Event
+ *   ↓
+ * Workload identity
+ *   ↓
+ * Resolution check
+ *   ↓
+ * Incident detection
+ *   ↓
+ * Existing incident?
+ *   ├── yes → update
+ *   └── no
+ *        ↓
+ *   Resolved incident?
+ *   ├── yes → reopen
+ *   └── no → create
+ *              ↓
+ *           evidence
+ *              ↓
+ *           diagnosis
  */
 export async function processResourceEvent(event) {
-  if (!event?.clusterId || !event?.resource) {
+  if (
+    !event?.clusterId ||
+    !event?.resource
+  ) {
     return {
       detected: false,
-
       incident: null,
     };
   }
 
-  /*
-   * ---------------------------------------
-   * Resolve logical workload
-   * ---------------------------------------
-   */
-
-  const workload = await resolveWorkloadWithRetry({
-    event,
-  });
 
   /*
-   * ---------------------------------------
-   * CrashLoop resolution
-   * ---------------------------------------
-   *
-   * Important:
-   *
-   * We resolve against the workload identity,
-   * not the Pod UID.
+   * =========================================
+   * 1. Resolve logical workload
+   * =========================================
    */
-
-  if (
-    event.resource.kind === "Pod" &&
-    isCrashLoopResolved(event) &&
-    workload?.uid
-  ) {
-    const anotherCrashLoop = await hasActiveCrashLoopForWorkload({
-      clusterId: event.clusterId,
-
-      workloadUid: workload.uid,
+  const workload =
+    await resolveWorkloadWithRetry({
+      event,
     });
 
-    /*
-     * A healthy Pod does NOT mean the workload
-     * is healthy if another Pod is still crashing.
-     */
+
+  /*
+   * =========================================
+   * 2. Handle CrashLoop resolution
+   * =========================================
+   *
+   * We only resolve when:
+   *
+   * - current resource is a Pod
+   * - this Pod is no longer in CrashLoopBackOff
+   * - NO OTHER Pod of the same workload is
+   *   still in CrashLoopBackOff
+   */
+  if (
+    event.resource.kind === "Pod" &&
+    workload?.uid &&
+    isIncidentResolved(
+      event,
+      "POD_CRASH_LOOP",
+    )
+  ) {
+    const anotherCrashLoop =
+      await hasActiveCrashLoopForWorkload({
+        clusterId:
+          event.clusterId,
+
+        workloadUid:
+          workload.uid,
+      });
+
+
     if (anotherCrashLoop) {
       console.log(
         `[Incident] Not resolving ` +
-          `POD_CRASH_LOOP for workload ` +
-          `${workload.kind}/${workload.name} ` +
-          `because another Pod is still crashing`,
+        `POD_CRASH_LOOP for ` +
+        `${workload.kind}/${workload.name} ` +
+        `because another Pod is still crashing`,
       );
 
       return {
         detected: false,
-
         resolved: false,
-
         incident: null,
       };
     }
 
-    const resolved = await resolveIncidentByWorkload({
-      clusterId: event.clusterId,
 
-      workloadUid: workload.uid,
+    const resolved =
+      await resolveIncidentByWorkload({
+        clusterId:
+          event.clusterId,
 
-      incidentType: "POD_CRASH_LOOP",
-    });
+        workloadUid:
+          workload.uid,
+
+        incidentType:
+          "POD_CRASH_LOOP",
+      });
+
 
     if (resolved) {
       console.log(
         `[Incident] RESOLVED ` +
-          `${resolved.incident_type} ` +
-          `${resolved.resource_kind}/` +
-          `${resolved.resource_name}`,
+        `${resolved.incident_type} ` +
+        `${resolved.resource_kind}/` +
+        `${resolved.resource_name}`,
       );
     }
+
 
     return {
       detected: false,
 
-      resolved: Boolean(resolved),
+      resolved:
+        Boolean(resolved),
 
-      incident: resolved,
+      incident:
+        resolved,
     };
   }
 
-  /*
-   * ---------------------------------------
-   * Detect incident
-   * ---------------------------------------
-   */
 
-  const incident = detectIncident(event);
+  /*
+   * =========================================
+   * 3. Detect active incident
+   * =========================================
+   */
+  const incident =
+    detectIncident(event);
+
 
   if (!incident) {
     return {
       detected: false,
-
       incident: null,
     };
   }
 
+
   /*
-   * ---------------------------------------
-   * Existing active incident
-   * ---------------------------------------
+   * =========================================
+   * 4. Find active incident
+   * =========================================
    */
+  const existing =
+    workload?.uid
+      ? await findOpenIncidentByWorkload({
+          clusterId:
+            event.clusterId,
 
-  const existing = workload?.uid
-    ? await findOpenIncidentByWorkload({
-        clusterId: event.clusterId,
+          workloadUid:
+            workload.uid,
 
-        workloadUid: workload.uid,
+          incidentType:
+            incident.incidentType,
+        })
+      : null;
 
-        incidentType: incident.incidentType,
-      })
-    : null;
 
+  /*
+   * =========================================
+   * 5. Existing incident → UPDATE
+   * =========================================
+   */
   if (existing) {
-    const updated = await updateIncident({
-      incidentId: existing.id,
+    const updated =
+      await updateIncident({
+        incidentId:
+          existing.id,
 
-      incident,
-    });
+        incident,
+      });
+
 
     console.log(
       `[Incident] Updated ` +
-        `${incident.incidentType} ` +
-        `${incident.resourceKind}/` +
-        `${incident.resourceName}`,
+      `${incident.incidentType} ` +
+      `${incident.resourceKind}/` +
+      `${incident.resourceName}`,
     );
+
 
     return {
       detected: true,
@@ -239,89 +438,100 @@ export async function processResourceEvent(event) {
 
       reopened: false,
 
-      incident: updated,
+      incident:
+        updated,
     };
   }
 
+
   /*
-   * ---------------------------------------
-   * Previously resolved incident
-   * ---------------------------------------
+   * =========================================
+   * 6. Look for resolved incident
+   * =========================================
    */
+  const resolved =
+    workload?.uid
+      ? await findResolvedIncidentByWorkload({
+          clusterId:
+            event.clusterId,
 
-  const resolved = workload?.uid
-    ? await findResolvedIncidentByWorkload({
-        clusterId: event.clusterId,
+          workloadUid:
+            workload.uid,
 
-        workloadUid: workload.uid,
+          incidentType:
+            incident.incidentType,
+        })
+      : null;
 
-        incidentType: incident.incidentType,
-      })
-    : null;
 
+  /*
+   * =========================================
+   * 7. Resolved incident → REOPEN
+   * =========================================
+   */
   if (resolved) {
-    const reopened = await reopenIncident({
-      incidentId: resolved.id,
+    const reopened =
+      await reopenIncident({
+        incidentId:
+          resolved.id,
 
-      incident,
-    });
+        incident,
+      });
+
 
     console.log(
       `[Incident] REOPENED ` +
-        `${incident.incidentType} ` +
-        `${incident.resourceKind}/` +
-        `${incident.resourceName}`,
+      `${incident.incidentType} ` +
+      `${incident.resourceKind}/` +
+      `${incident.resourceName}`,
     );
 
+
     /*
-     * Collect fresh evidence for the new
-     * occurrence.
+     * Collect fresh evidence for this occurrence.
      */
     try {
       await collectIncidentEvidence({
-        incident: reopened,
+        incident:
+          reopened,
 
-        snapshot: {
-          uid: event.resource.uid,
-
-          kind: event.resource.kind,
-
-          name: event.resource.name,
-
-          namespace: event.resource.namespace,
-
-          labels: event.resource.labels,
-
-          resource_version: event.resource.resourceVersion,
-
-          resource: event.resource,
-        },
+        snapshot:
+          buildEvidenceSnapshot(
+            event,
+          ),
       });
     } catch (error) {
       console.error(
         `[Incident] Evidence collection failed ` +
-          `for reopened incident ${reopened.id}:`,
+        `for reopened incident ${reopened.id}:`,
         error,
       );
     }
 
+
     /*
-     * Re-run diagnosis using the new evidence.
+     * Re-run diagnosis with the new evidence.
      */
     try {
-      const diagnosis = await runDiagnosis(reopened);
+      const diagnosis =
+        await runDiagnosis(
+          reopened,
+        );
+
 
       console.log(
         `[Diagnosis] Updated ` +
-          `${diagnosis.primary_cause} ` +
-          `confidence=${diagnosis.confidence}`,
+        `${diagnosis.primary_cause} ` +
+        `confidence=${diagnosis.confidence}`,
       );
     } catch (error) {
       console.error(
-        `[Diagnosis] Failed for reopened incident ` + `${reopened.id}:`,
+        `[Diagnosis] Failed for reopened incident ` +
+        `${reopened.id}:`,
         error,
       );
     }
+
 
     return {
       detected: true,
@@ -332,81 +542,85 @@ export async function processResourceEvent(event) {
 
       reopened: true,
 
-      incident: reopened,
+      incident:
+        reopened,
     };
   }
 
-  /*
-   * ---------------------------------------
-   * Completely new incident
-   * ---------------------------------------
-   */
-
-  const created = await createIncident({
-    clusterId: event.clusterId,
-
-    incident,
-
-    workload,
-  });
 
   /*
-   * ---------------------------------------
-   * Initial evidence
-   * ---------------------------------------
+   * =========================================
+   * 8. Completely new incident
+   * =========================================
    */
+  const created =
+    await createIncident({
+      clusterId:
+        event.clusterId,
 
+      incident,
+
+      workload,
+    });
+
+
+  /*
+   * =========================================
+   * 9. Collect initial evidence
+   * =========================================
+   */
   try {
     await collectIncidentEvidence({
-      incident: created,
+      incident:
+        created,
 
-      snapshot: {
-        uid: event.resource.uid,
-
-        kind: event.resource.kind,
-
-        name: event.resource.name,
-
-        namespace: event.resource.namespace,
-
-        labels: event.resource.labels,
-
-        resource_version: event.resource.resourceVersion,
-
-        resource: event.resource,
-      },
+      snapshot:
+        buildEvidenceSnapshot(
+          event,
+        ),
     });
   } catch (error) {
     console.error(
-      `[Incident] Evidence collection failed ` + `for ${created.id}:`,
+      `[Incident] Evidence collection failed ` +
+      `for incident ${created.id}:`,
       error,
     );
   }
 
-  /*
-   * ---------------------------------------
-   * Initial diagnosis
-   * ---------------------------------------
-   */
 
+  /*
+   * =========================================
+   * 10. Run initial diagnosis
+   * =========================================
+   */
   try {
-    const diagnosis = await runDiagnosis(created);
+    const diagnosis =
+      await runDiagnosis(
+        created,
+      );
+
 
     console.log(
       `[Diagnosis] Created ` +
-        `${diagnosis.primary_cause} ` +
-        `confidence=${diagnosis.confidence}`,
+      `${diagnosis.primary_cause} ` +
+      `confidence=${diagnosis.confidence}`,
     );
   } catch (error) {
-    console.error(`[Diagnosis] Failed for incident ` + `${created.id}:`, error);
+    console.error(
+      `[Diagnosis] Failed for incident ` +
+      `${created.id}:`,
+      error,
+    );
   }
+
 
   console.log(
     `[Incident] CREATED ` +
-      `${created.incident_type} ` +
-      `${created.resource_kind}/` +
-      `${created.resource_name}`,
+    `${created.incident_type} ` +
+    `${created.resource_kind}/` +
+    `${created.resource_name}`,
   );
+
 
   return {
     detected: true,
@@ -417,38 +631,7 @@ export async function processResourceEvent(event) {
 
     reopened: false,
 
-    incident: created,
+    incident:
+      created,
   };
-}
-async function hasActiveCrashLoopForWorkload({ clusterId, workloadUid }) {
-  const resources = await loadClusterResources(clusterId);
-
-  for (const resource of resources) {
-    if (resource.kind !== "Pod") {
-      continue;
-    }
-
-    const workload = resolveWorkloadIdentity({
-      resource,
-
-      resources,
-    });
-
-    if (workload?.uid !== workloadUid) {
-      continue;
-    }
-
-    const containerStatuses =
-      resource.resource?.status?.containerStatuses || [];
-
-    const crashing = containerStatuses.some(
-      (container) => container?.state?.waiting?.reason === "CrashLoopBackOff",
-    );
-
-    if (crashing) {
-      return true;
-    }
-  }
-
-  return false;
 }

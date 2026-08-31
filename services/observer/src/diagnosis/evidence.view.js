@@ -8,7 +8,10 @@ export function buildDiagnosisEvidence(evidenceRows) {
       for (const container of data.containers || []) {
         const waitingReason = container?.state?.waiting?.reason || null;
 
-        const terminated = container?.lastState?.terminated || null;
+        const terminated =
+          container?.lastState?.terminated ||
+          container?.state?.terminated ||
+          null;
 
         result.push({
           type: "CONTAINER",
@@ -17,11 +20,11 @@ export function buildDiagnosisEvidence(evidenceRows) {
 
           restartCount: Number(container.restartCount || 0),
 
-          reason: waitingReason,
-
-          exitCode: terminated?.exitCode ?? null,
+          reason: container?.state?.waiting?.reason || null,
 
           terminationReason: terminated?.reason || null,
+
+          exitCode: terminated?.exitCode ?? null,
         });
       }
     }
