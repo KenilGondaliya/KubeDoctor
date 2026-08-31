@@ -8,4 +8,6 @@ export const EvidenceType = Object.freeze({
   NODE_CONTEXT: "NODE_CONTEXT",
 
   KUBERNETES_EVENT: "KUBERNETES_EVENT",
+
+  CONTAINER_LOG: "CONTAINER_LOG",
 });

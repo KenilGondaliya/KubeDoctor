@@ -23,3 +23,9 @@ export function createAppsApi(contextName) {
 
   return config.makeApiClient(k8s.AppsV1Api);
 }
+
+export function createLogApi(contextName) {
+  const config = loadKubeConfig(contextName);
+
+  return config.makeApiClient(k8s.CoreV1Api);
+}
