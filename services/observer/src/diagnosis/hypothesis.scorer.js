@@ -316,6 +316,62 @@ export function scoreHypothesis({ hypothesis, evidence }) {
         reasons.push("Scheduler evidence indicates an affinity constraint.");
       }
     }
+
+    /*
+     * =========================================
+     * APPLICATION NOT READY
+     * =========================================
+     */
+    if (hypothesis.cause === "APPLICATION_NOT_READY") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        (item.reason === "Unhealthy" || item.reason === "Failed")
+      ) {
+        score += 0.35;
+
+        reasons.push(`Kubernetes reported ${item.reason} for the Pod.`);
+      }
+    }
+
+    /*
+     * =========================================
+     * READINESS PROBE FAILURE
+     * =========================================
+     */
+    if (hypothesis.cause === "READINESS_PROBE_FAILURE") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        (item.message.toLowerCase().includes("readiness probe") ||
+          item.message.toLowerCase().includes("readiness"))
+      ) {
+        score += 0.65;
+
+        reasons.push(
+          "Kubernetes evidence indicates a readiness probe failure.",
+        );
+      }
+    }
+
+    /*
+     * =========================================
+     * DEPENDENCY UNAVAILABLE
+     * =========================================
+     */
+    if (hypothesis.cause === "DEPENDENCY_UNAVAILABLE") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        (item.message.toLowerCase().includes("connection refused") ||
+          item.message.toLowerCase().includes("timeout"))
+      ) {
+        score += 0.4;
+
+        reasons.push(
+          "Evidence suggests the application may be unable to reach a required dependency.",
+        );
+      }
+    }
   }
 
   return {

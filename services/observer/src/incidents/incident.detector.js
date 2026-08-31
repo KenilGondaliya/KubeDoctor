@@ -24,6 +24,11 @@ import {
   FAILED_SCHEDULING_PRIORITY,
 } from "./rules/failed-scheduling.rule.js";
 
+import {
+  detectReadinessFailure,
+  READINESS_FAILURE_PRIORITY,
+} from "./rules/readiness-failure.rule.js";
+
 const incidentRules = [
   {
     name: "OOM_KILLED",
@@ -48,11 +53,15 @@ const incidentRules = [
     priority: POD_CRASH_LOOP_PRIORITY,
     detect: detectPodCrashLoop,
   },
-
   {
     name: "POD_PENDING",
     priority: POD_PENDING_PRIORITY,
     detect: detectPodPending,
+  },
+  {
+    name: "READINESS_FAILURE",
+    priority: READINESS_FAILURE_PRIORITY,
+    detect: detectReadinessFailure,
   },
 ];
 
@@ -92,6 +101,22 @@ export function isIncidentResolved(event, incidentType) {
       return (
         event?.resource?.kind === "Pod" &&
         event?.resource?.status?.phase !== "Pending"
+      );
+
+    case "FAILED_SCHEDULING":
+      return (
+        event?.resource?.kind === "Pod" &&
+        event?.resource?.status?.phase !== "Pending"
+      );
+
+    case "READINESS_FAILURE":
+      return (
+        event?.resource?.kind === "Pod" &&
+        event?.resource?.status?.phase === "Running" &&
+        event?.resource?.status?.conditions?.some(
+          (condition) =>
+            condition?.type === "Ready" && condition?.status === "True",
+        )
       );
 
     default:

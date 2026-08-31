@@ -184,5 +184,52 @@ export function generateHypotheses({ incident }) {
     );
   }
 
+  if (incident.incident_type === "READINESS_FAILURE") {
+    hypotheses.push(
+      {
+        cause: "APPLICATION_NOT_READY",
+
+        summary:
+          "The application is running but is failing its readiness condition.",
+
+        baseScore: 0.25,
+
+        reasons: [],
+      },
+
+      {
+        cause: "READINESS_PROBE_FAILURE",
+
+        summary: "The Kubernetes readiness probe may be failing.",
+
+        baseScore: 0.2,
+
+        reasons: [],
+      },
+
+      {
+        cause: "DEPENDENCY_UNAVAILABLE",
+
+        summary:
+          "The application may not be ready because a required dependency is unavailable.",
+
+        baseScore: 0.15,
+
+        reasons: [],
+      },
+
+      {
+        cause: "APPLICATION_STARTUP_DELAY",
+
+        summary:
+          "The application may still be initializing and has not become ready.",
+
+        baseScore: 0.1,
+
+        reasons: [],
+      },
+    );
+  }
+
   return hypotheses;
 }

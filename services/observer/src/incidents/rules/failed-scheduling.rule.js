@@ -19,16 +19,33 @@ export function detectFailedScheduling(event) {
     return null;
   }
 
+  const phase =
+    event.resource?.status?.phase || event.resource?.raw?.status?.phase || null;
+
+  /*
+   * A scheduling failure is specifically
+   * associated with a Pod that has not been
+   * successfully scheduled.
+   */
+  if (phase !== "Pending") {
+    return null;
+  }
+
   const conditions = getConditions(event);
 
-  const scheduledCondition = event.resource?.status?.conditions?.find(
+  const scheduledCondition = conditions.find(
     (condition) => condition?.type === "PodScheduled",
   );
 
-  if (
-    scheduledCondition?.status === "False" &&
-    scheduledCondition?.reason === "Unschedulable"
-  ) {
+  if (!scheduledCondition) {
+    return null;
+  }
+
+  if (scheduledCondition.status !== "False") {
+    return null;
+  }
+
+  if (scheduledCondition.reason !== "Unschedulable") {
     return null;
   }
 
@@ -48,11 +65,13 @@ export function detectFailedScheduling(event) {
     title: `Pod ${name} failed scheduling`,
 
     description:
-      `Pod ${name} could not be scheduled onto ` +
-      `an available Kubernetes node.`,
+      `Pod ${name} could not be scheduled ` +
+      `onto an available Kubernetes node.`,
 
     evidence: {
       reason: "FailedScheduling",
+
+      phase: phase,
 
       scheduledCondition: {
         type: scheduledCondition.type,
@@ -66,7 +85,10 @@ export function detectFailedScheduling(event) {
         lastTransitionTime: scheduledCondition.lastTransitionTime || null,
       },
 
-      nodeName: event.resource?.spec?.nodeName || null,
+      nodeName:
+        event.resource?.spec?.nodeName ||
+        event.resource?.raw?.spec?.nodeName ||
+        null,
     },
   };
 }
