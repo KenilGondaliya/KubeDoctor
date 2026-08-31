@@ -16,11 +16,16 @@ export function detectIncident(event) {
   const { kind, uid, name, namespace } = event.resource;
 
   /*
-   * Current first rule:
-   * detect CrashLoopBackOff on Pods.
+   * Currently supported incident:
+   *
+   * Pod → CrashLoopBackOff
    */
 
   if (kind !== "Pod") {
+    return null;
+  }
+
+  if (!uid || !name) {
     return null;
   }
 
@@ -33,12 +38,24 @@ export function detectIncident(event) {
   const crashingContainers = containerStatuses.filter((container) => {
     const waitingReason = container?.state?.waiting?.reason;
 
-    const lastTerminatedReason = container?.lastState?.terminated?.reason;
+    /*
+     * Usually CrashLoopBackOff
+     * appears here.
+     */
 
-    return (
-      waitingReason === "CrashLoopBackOff" ||
-      lastTerminatedReason === "CrashLoopBackOff"
-    );
+    if (waitingReason === "CrashLoopBackOff") {
+      return true;
+    }
+
+    /*
+     * We keep this fallback for
+     * normalized historical/container
+     * state data.
+     */
+
+    const lastTerminationReason = container?.lastState?.terminated?.reason;
+
+    return lastTerminationReason === "CrashLoopBackOff";
   });
 
   if (crashingContainers.length === 0) {
@@ -66,8 +83,9 @@ export function detectIncident(event) {
     title: `Pod ${name} is in CrashLoopBackOff`,
 
     description:
-      `Pod ${name} has one or more containers repeatedly ` +
-      `failing and entering CrashLoopBackOff.`,
+      `Pod ${name} has one or more containers ` +
+      `repeatedly failing and entering ` +
+      `CrashLoopBackOff.`,
 
     evidence: {
       reason: "CrashLoopBackOff",
@@ -77,7 +95,7 @@ export function detectIncident(event) {
       crashingContainers: crashingContainers.map((container) => ({
         name: container.name || null,
 
-        restartCount: container.restartCount || 0,
+        restartCount: Number(container.restartCount || 0),
 
         waitingReason: container?.state?.waiting?.reason || null,
 
@@ -98,3 +116,54 @@ export function detectIncident(event) {
     },
   };
 }
+
+/**
+ * Returns the identity used for resolving
+ * CrashLoop incidents.
+ */
+export function getIncidentKey(event) {
+  if (event?.resource?.kind !== "Pod") {
+    return null;
+  }
+
+  if (!event.resource.uid) {
+    return null;
+  }
+
+  return {
+    resourceUid: event.resource.uid,
+
+    incidentType: POD_CRASH_LOOP,
+  };
+}
+
+/**
+ * Determines whether the current Pod state
+ * is no longer in CrashLoopBackOff.
+ */
+export function isCrashLoopResolved(event) {
+  if (event?.resource?.kind !== "Pod") {
+    return false;
+  }
+
+  const statuses = getContainerStatuses(event);
+
+  /*
+   * A Pod without container status does not
+   * provide enough information to declare
+   * a CrashLoop resolved.
+   *
+   * Therefore, don't resolve here.
+   */
+  if (statuses.length === 0) {
+    return false;
+  }
+
+  return statuses.every((container) => {
+    const waitingReason = container?.state?.waiting?.reason;
+
+    return waitingReason !== "CrashLoopBackOff";
+  });
+}
+
+export { POD_CRASH_LOOP };
