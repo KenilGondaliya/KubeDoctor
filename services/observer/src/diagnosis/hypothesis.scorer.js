@@ -171,6 +171,151 @@ export function scoreHypothesis({ hypothesis, evidence }) {
        * or metrics before increasing this score.
        */
     }
+
+    /*
+     * =========================================
+     * IMAGE NOT FOUND
+     * =========================================
+     */
+    if (hypothesis.cause === "IMAGE_NOT_FOUND") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        (item.reason === "ErrImagePull" || item.reason === "ImagePullBackOff")
+      ) {
+        score += 0.6;
+
+        reasons.push(
+          `Kubernetes event ${item.reason} indicates image pull failure.`,
+        );
+      }
+    }
+
+    /*
+     * =========================================
+     * INVALID IMAGE REFERENCE
+     * =========================================
+     */
+    if (hypothesis.cause === "INVALID_IMAGE_REFERENCE") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        item.reason === "InvalidImageName"
+      ) {
+        score += 0.7;
+
+        reasons.push("Kubernetes reported an invalid image name.");
+      }
+    }
+
+    /*
+     * =========================================
+     * REGISTRY AUTHENTICATION
+     * =========================================
+     */
+    if (hypothesis.cause === "IMAGE_REGISTRY_AUTHENTICATION") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        (item.message.toLowerCase().includes("unauthorized") ||
+          item.message.toLowerCase().includes("authentication required"))
+      ) {
+        score += 0.7;
+
+        reasons.push("Registry authentication failure detected.");
+      }
+    }
+
+    /*
+     * =========================================
+     * REGISTRY NETWORK FAILURE
+     * =========================================
+     */
+    if (hypothesis.cause === "REGISTRY_NETWORK_FAILURE") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        (item.message.toLowerCase().includes("timeout") ||
+          item.message.toLowerCase().includes("connection refused") ||
+          item.message.toLowerCase().includes("no route"))
+      ) {
+        score += 0.5;
+
+        reasons.push(
+          "Container registry network connectivity failure detected.",
+        );
+      }
+    }
+
+    /*
+     * =========================================
+     * SCHEDULING FAILURE
+     * =========================================
+     */
+    if (hypothesis.cause === "SCHEDULING_FAILURE") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        item.reason === "FailedScheduling"
+      ) {
+        score += 0.6;
+
+        reasons.push("Kubernetes scheduler reported FailedScheduling.");
+      }
+    }
+
+    /*
+     * =========================================
+     * RESOURCE CONSTRAINT
+     * =========================================
+     */
+    if (hypothesis.cause === "RESOURCE_CONSTRAINT") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        (item.message.toLowerCase().includes("insufficient cpu") ||
+          item.message.toLowerCase().includes("insufficient memory") ||
+          item.message.toLowerCase().includes("insufficient"))
+      ) {
+        score += 0.65;
+
+        reasons.push("Scheduler reported insufficient cluster resources.");
+      }
+    }
+
+    /*
+     * =========================================
+     * NODE SELECTOR MISMATCH
+     * =========================================
+     */
+    if (hypothesis.cause === "NODE_SELECTOR_MISMATCH") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        item.message.toLowerCase().includes("didn't match node selector")
+      ) {
+        score += 0.6;
+
+        reasons.push(
+          "Scheduler reported that nodes did not match the Pod node selector.",
+        );
+      }
+    }
+
+    /*
+     * =========================================
+     * AFFINITY CONSTRAINT
+     * =========================================
+     */
+    if (hypothesis.cause === "AFFINITY_CONSTRAINT") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        (item.message.toLowerCase().includes("affinity") ||
+          item.message.toLowerCase().includes("anti-affinity"))
+      ) {
+        score += 0.5;
+
+        reasons.push("Scheduler evidence indicates an affinity constraint.");
+      }
+    }
   }
 
   return {

@@ -91,5 +91,98 @@ export function generateHypotheses({ incident }) {
     );
   }
 
+  if (incident.incident_type === "IMAGE_PULL_FAILURE") {
+    hypotheses.push(
+      {
+        cause: "IMAGE_NOT_FOUND",
+
+        summary: "The configured container image could not be found or pulled.",
+
+        baseScore: 0.3,
+
+        reasons: [],
+      },
+
+      {
+        cause: "IMAGE_REGISTRY_AUTHENTICATION",
+
+        summary:
+          "The container registry may require authentication that is missing or invalid.",
+
+        baseScore: 0.2,
+
+        reasons: [],
+      },
+
+      {
+        cause: "INVALID_IMAGE_REFERENCE",
+
+        summary: "The configured image reference may be invalid.",
+
+        baseScore: 0.2,
+
+        reasons: [],
+      },
+
+      {
+        cause: "REGISTRY_NETWORK_FAILURE",
+
+        summary:
+          "The Kubernetes node may be unable to reach the container registry.",
+
+        baseScore: 0.1,
+
+        reasons: [],
+      },
+    );
+  }
+
+  if (incident.incident_type === "POD_PENDING") {
+    hypotheses.push(
+      {
+        cause: "SCHEDULING_FAILURE",
+
+        summary:
+          "The Pod may be unable to obtain a suitable node for scheduling.",
+
+        baseScore: 0.25,
+
+        reasons: [],
+      },
+
+      {
+        cause: "RESOURCE_CONSTRAINT",
+
+        summary:
+          "The Pod may be waiting because available cluster resources are insufficient.",
+
+        baseScore: 0.15,
+
+        reasons: [],
+      },
+
+      {
+        cause: "NODE_SELECTOR_MISMATCH",
+
+        summary:
+          "The Pod scheduling constraints may not match any available node.",
+
+        baseScore: 0.15,
+
+        reasons: [],
+      },
+
+      {
+        cause: "AFFINITY_CONSTRAINT",
+
+        summary: "Pod affinity or anti-affinity rules may prevent scheduling.",
+
+        baseScore: 0.1,
+
+        reasons: [],
+      },
+    );
+  }
+
   return hypotheses;
 }

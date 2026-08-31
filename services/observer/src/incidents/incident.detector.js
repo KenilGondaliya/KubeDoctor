@@ -9,6 +9,16 @@ import {
   OOM_KILLED_PRIORITY,
 } from "./rules/oom-killed.rule.js";
 
+import {
+  detectImagePullFailure,
+  IMAGE_PULL_FAILURE_PRIORITY,
+} from "./rules/image-pull.rule.js";
+
+import {
+  detectPodPending,
+  POD_PENDING_PRIORITY,
+} from "./rules/pod-pending.rule.js";
+
 const incidentRules = [
   {
     name: "OOM_KILLED",
@@ -19,11 +29,27 @@ const incidentRules = [
   },
 
   {
+    name: "IMAGE_PULL_FAILURE",
+
+    priority: IMAGE_PULL_FAILURE_PRIORITY,
+
+    detect: detectImagePullFailure,
+  },
+
+  {
     name: "POD_CRASH_LOOP",
 
     priority: POD_CRASH_LOOP_PRIORITY,
 
     detect: detectPodCrashLoop,
+  },
+
+  {
+    name: "POD_PENDING",
+
+    priority: POD_PENDING_PRIORITY,
+
+    detect: detectPodPending,
   },
 ];
 
@@ -47,7 +73,23 @@ export function isIncidentResolved(event, incidentType) {
       return isPodCrashLoopResolved(event);
 
     case "OOM_KILLED":
+      /*
+       * OOMKilled is an observed termination
+       * event, not a persistent waiting state.
+       *
+       * We will resolve it using workload
+       * health/recovery logic later.
+       */
       return false;
+
+    case "IMAGE_PULL_FAILURE":
+      return false;
+
+    case "POD_PENDING":
+      return (
+        event?.resource?.kind === "Pod" &&
+        event?.resource?.status?.phase !== "Pending"
+      );
 
     default:
       return false;
