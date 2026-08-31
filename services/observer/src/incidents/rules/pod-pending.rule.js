@@ -1,144 +1,92 @@
-const POD_PENDING =
-  "POD_PENDING";
-
+const POD_PENDING = "POD_PENDING";
 
 export function detectPodPending(event) {
-  if (
-    event?.resource?.kind !==
-    "Pod"
-  ) {
+  if (event?.resource?.kind !== "Pod") {
     return null;
   }
 
-
-  const {
-    uid,
-    name,
-    namespace,
-  } = event.resource;
-
+  const { uid, name, namespace } = event.resource;
 
   if (!uid || !name) {
     return null;
   }
 
-
-  const phase =
-    event.resource?.status?.phase;
-
+  const phase = event.resource?.status?.phase;
 
   /*
    * Only detect an actual Pending Pod.
    */
-  if (
-    phase !== "Pending"
-  ) {
+  if (phase !== "Pending") {
     return null;
   }
 
+  const scheduledCondition = event.resource?.status?.conditions?.find(
+    (condition) => condition?.type === "PodScheduled",
+  );
 
+  if (
+    scheduledCondition?.status === "False" &&
+    scheduledCondition?.reason === "Unschedulable"
+  ) {
+    return null;
+  }
   /*
    * If the Pod has a container already waiting
    * because of a more specific failure, let that
    * specialized rule handle it.
    */
-  const containerStatuses =
-    event.resource
-      ?.status
-      ?.containerStatuses ||
-    [];
+  const containerStatuses = event.resource?.status?.containerStatuses || [];
 
+  const hasSpecificContainerFailure = containerStatuses.some((container) => {
+    const reason = container?.state?.waiting?.reason;
 
-  const hasSpecificContainerFailure =
-    containerStatuses.some(
-      (container) => {
-        const reason =
-          container?.state
-            ?.waiting
-            ?.reason;
+    return [
+      "CrashLoopBackOff",
+      "ImagePullBackOff",
+      "ErrImagePull",
+      "InvalidImageName",
+    ].includes(reason);
+  });
 
-        return [
-          "CrashLoopBackOff",
-          "ImagePullBackOff",
-          "ErrImagePull",
-          "InvalidImageName",
-        ].includes(
-          reason,
-        );
-      },
-    );
-
-
-  if (
-    hasSpecificContainerFailure
-  ) {
+  if (hasSpecificContainerFailure) {
     return null;
   }
 
-
   return {
-    incidentType:
-      POD_PENDING,
+    incidentType: POD_PENDING,
 
-    resourceUid:
-      uid,
+    resourceUid: uid,
 
-    resourceKind:
-      "Pod",
+    resourceKind: "Pod",
 
-    resourceName:
-      name,
+    resourceName: name,
 
-    namespace:
-      namespace || null,
+    namespace: namespace || null,
 
-    severity:
-      "MEDIUM",
+    severity: "MEDIUM",
 
-    title:
-      `Pod ${name} is Pending`,
+    title: `Pod ${name} is Pending`,
 
     description:
       `Pod ${name} has remained in the Pending ` +
       `phase and has not become ready to run.`,
 
     evidence: {
-      phase:
-        "Pending",
+      phase: "Pending",
 
-      conditions:
-        event.resource
-          ?.status
-          ?.conditions ||
-        [],
+      conditions: event.resource?.status?.conditions || [],
 
-      containerStatuses:
-        containerStatuses.map(
-          (container) => ({
-            name:
-              container.name ||
-              null,
+      containerStatuses: containerStatuses.map((container) => ({
+        name: container.name || null,
 
-            ready:
-              Boolean(
-                container.ready,
-              ),
+        ready: Boolean(container.ready),
 
-            state:
-              container.state ||
-              {},
-          }),
-        ),
+        state: container.state || {},
+      })),
 
-      nodeName:
-        event.resource
-          ?.spec
-          ?.nodeName ||
-        null,
+      nodeName: event.resource?.spec?.nodeName || null,
     },
   };
 }
 
-
-export const POD_PENDING_PRIORITY =
-  40;
+export const POD_PENDING_PRIORITY = 40;

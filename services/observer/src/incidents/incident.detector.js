@@ -19,36 +19,39 @@ import {
   POD_PENDING_PRIORITY,
 } from "./rules/pod-pending.rule.js";
 
+import {
+  detectFailedScheduling,
+  FAILED_SCHEDULING_PRIORITY,
+} from "./rules/failed-scheduling.rule.js";
+
 const incidentRules = [
   {
     name: "OOM_KILLED",
-
     priority: OOM_KILLED_PRIORITY,
-
     detect: detectOomKilled,
   },
 
   {
     name: "IMAGE_PULL_FAILURE",
-
     priority: IMAGE_PULL_FAILURE_PRIORITY,
-
     detect: detectImagePullFailure,
   },
 
   {
+    name: "FAILED_SCHEDULING",
+    priority: FAILED_SCHEDULING_PRIORITY,
+    detect: detectFailedScheduling,
+  },
+
+  {
     name: "POD_CRASH_LOOP",
-
     priority: POD_CRASH_LOOP_PRIORITY,
-
     detect: detectPodCrashLoop,
   },
 
   {
     name: "POD_PENDING",
-
     priority: POD_PENDING_PRIORITY,
-
     detect: detectPodPending,
   },
 ];
