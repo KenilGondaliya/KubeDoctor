@@ -8,6 +8,8 @@ import {
 
 import { collectIncidentEvidence } from "../evidence/evidence.service.js";
 
+import { runDiagnosis } from "../diagnosis/diagnosis.service.js";
+
 export async function processResourceEvent(event) {
   const incident = detectIncident(event);
 
