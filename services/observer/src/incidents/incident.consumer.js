@@ -63,15 +63,30 @@ async function consumeMessages(consumer) {
     try {
       const event = JSON.parse(codec.decode(message.data));
 
-      await processResourceEvent(event);
+      console.log(
+        `[IncidentConsumer] Received ` +
+          `${event.operation} ` +
+          `${event.resource?.kind}/` +
+          `${event.resource?.name} ` +
+          `uid=${event.resource?.uid}`,
+      );
+
+      const result = await processResourceEvent(event);
+
+      console.log(
+        `[IncidentConsumer] Processed ` +
+          `${event.resource?.kind}/` +
+          `${event.resource?.name}:`,
+        result,
+      );
 
       message.ack();
     } catch (error) {
       console.error("[IncidentConsumer] Event processing failed:", error);
 
       /*
-       * For now don't acknowledge failed
-       * events so JetStream can redeliver them.
+       * Deliberately don't ACK failed messages.
+       * JetStream can redeliver them.
        */
     }
   }

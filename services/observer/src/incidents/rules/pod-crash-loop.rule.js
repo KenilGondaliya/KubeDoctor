@@ -1,4 +1,5 @@
 const POD_CRASH_LOOP = "POD_CRASH_LOOP";
+export const POD_CRASH_LOOP_PRIORITY = 50;
 
 function getContainerStatuses(event) {
   return (

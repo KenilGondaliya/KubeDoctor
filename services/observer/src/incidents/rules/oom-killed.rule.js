@@ -8,6 +8,8 @@ function getContainerStatuses(event) {
   );
 }
 
+export const OOM_KILLED_PRIORITY = 100;
+
 export function detectOomKilled(event) {
   if (event?.resource?.kind !== "Pod") {
     return null;

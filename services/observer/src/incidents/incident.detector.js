@@ -1,15 +1,37 @@
 import {
   detectPodCrashLoop,
   isPodCrashLoopResolved,
+  POD_CRASH_LOOP_PRIORITY,
 } from "./rules/pod-crash-loop.rule.js";
 
-import { detectOomKilled } from "./rules/oom-killed.rule.js";
+import {
+  detectOomKilled,
+  OOM_KILLED_PRIORITY,
+} from "./rules/oom-killed.rule.js";
 
-const incidentRules = [detectOomKilled, detectPodCrashLoop];
+const incidentRules = [
+  {
+    name: "OOM_KILLED",
+
+    priority: OOM_KILLED_PRIORITY,
+
+    detect: detectOomKilled,
+  },
+
+  {
+    name: "POD_CRASH_LOOP",
+
+    priority: POD_CRASH_LOOP_PRIORITY,
+
+    detect: detectPodCrashLoop,
+  },
+];
+
+incidentRules.sort((a, b) => b.priority - a.priority);
 
 export function detectIncident(event) {
   for (const rule of incidentRules) {
-    const incident = rule(event);
+    const incident = rule.detect(event);
 
     if (incident) {
       return incident;
@@ -24,14 +46,6 @@ export function isIncidentResolved(event, incidentType) {
     case "POD_CRASH_LOOP":
       return isPodCrashLoopResolved(event);
 
-    /*
-     * OOMKilled is a terminating event,
-     * not a permanent Pod condition.
-     *
-     * Therefore we don't automatically
-     * resolve OOMKilled from a single
-     * Pod event yet.
-     */
     case "OOM_KILLED":
       return false;
 
