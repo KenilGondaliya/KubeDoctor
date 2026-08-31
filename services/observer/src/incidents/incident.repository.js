@@ -261,8 +261,8 @@ export async function resolveIncidentByWorkload({
       SET
         status = 'RESOLVED',
         resolved_at = NOW(),
-        last_seen_at = NOW(),
-        updated_at = NOW()
+        updated_at = NOW(),
+        last_seen_at = NOW()
       WHERE
         cluster_id = $1
         AND workload_uid = $2

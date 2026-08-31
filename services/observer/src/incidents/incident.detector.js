@@ -148,13 +148,6 @@ export function isCrashLoopResolved(event) {
 
   const statuses = getContainerStatuses(event);
 
-  /*
-   * A Pod without container status does not
-   * provide enough information to declare
-   * a CrashLoop resolved.
-   *
-   * Therefore, don't resolve here.
-   */
   if (statuses.length === 0) {
     return false;
   }
@@ -165,5 +158,3 @@ export function isCrashLoopResolved(event) {
     return waitingReason !== "CrashLoopBackOff";
   });
 }
-
-export { POD_CRASH_LOOP };

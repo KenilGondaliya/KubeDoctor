@@ -6,6 +6,8 @@ import { publishResourceEvent } from "./resource.publisher.js";
 
 import { rebuildTopology } from "../topology/topology.service.js";
 
+import { db } from "../config/database.js";
+
 export class Reconciler {
   constructor({ kubeContext, clusterId, intervalMs }) {
     this.kubeContext = kubeContext;
@@ -53,6 +55,14 @@ export class Reconciler {
     await this.publishSnapshot(
       "Service",
       services.body?.items ?? services.items ?? [],
+    );
+
+    await this.publishSnapshot("Pod", pods.body?.items ?? pods.items ?? []);
+
+    await pruneSnapshots(
+      this.clusterId,
+      "Pod",
+      pods.body?.items ?? pods.items ?? [],
     );
 
     await this.publishSnapshot(
@@ -110,4 +120,27 @@ export class Reconciler {
       this.timer = null;
     }
   }
+}
+
+async function pruneSnapshots(clusterId, kind, currentResources) {
+  const currentUids = currentResources
+    .map((resource) => resource?.metadata?.uid)
+    .filter(Boolean);
+
+  if (currentUids.length === 0) {
+    return;
+  }
+
+  await db.query(
+    `
+    DELETE FROM resource_snapshots
+    WHERE
+      cluster_id = $1
+      AND kind = $2
+      AND NOT (
+        uid = ANY($3::text[])
+      )
+    `,
+    [clusterId, kind, currentUids],
+  );
 }

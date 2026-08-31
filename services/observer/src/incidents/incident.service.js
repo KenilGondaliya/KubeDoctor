@@ -131,6 +131,33 @@ export async function processResourceEvent(event) {
     isCrashLoopResolved(event) &&
     workload?.uid
   ) {
+    const anotherCrashLoop = await hasActiveCrashLoopForWorkload({
+      clusterId: event.clusterId,
+
+      workloadUid: workload.uid,
+    });
+
+    /*
+     * A healthy Pod does NOT mean the workload
+     * is healthy if another Pod is still crashing.
+     */
+    if (anotherCrashLoop) {
+      console.log(
+        `[Incident] Not resolving ` +
+          `POD_CRASH_LOOP for workload ` +
+          `${workload.kind}/${workload.name} ` +
+          `because another Pod is still crashing`,
+      );
+
+      return {
+        detected: false,
+
+        resolved: false,
+
+        incident: null,
+      };
+    }
+
     const resolved = await resolveIncidentByWorkload({
       clusterId: event.clusterId,
 

@@ -82,3 +82,17 @@ export async function upsertSnapshot(event) {
     ],
   );
 }
+
+export async function deleteSnapshot({ clusterId, uid }) {
+  await db.query(
+    `
+    DELETE FROM resource_snapshots
+    WHERE
+      cluster_id = $1
+      AND uid = $2
+    `,
+    [clusterId, uid],
+  );
+
+  console.log(`[Snapshot] Deleted ${uid}`);
+}
