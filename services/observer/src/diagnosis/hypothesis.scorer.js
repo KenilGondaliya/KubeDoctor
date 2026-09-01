@@ -372,6 +372,82 @@ export function scoreHypothesis({ hypothesis, evidence }) {
         );
       }
     }
+
+    /*
+     * =========================================
+     * APPLICATION HUNG
+     * =========================================
+     */
+    if (hypothesis.cause === "APPLICATION_HUNG") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        item.message.toLowerCase().includes("liveness probe")
+      ) {
+        score += 0.45;
+
+        reasons.push("Kubernetes reported a liveness probe failure.");
+      }
+    }
+
+    /*
+     * =========================================
+     * LIVENESS PROBE MISCONFIGURATION
+     * =========================================
+     */
+    if (hypothesis.cause === "LIVENESS_PROBE_MISCONFIGURATION") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        item.message.toLowerCase().includes("liveness probe")
+      ) {
+        score += 0.2;
+
+        reasons.push("The workload is failing its configured liveness probe.");
+      }
+    }
+
+    /*
+     * =========================================
+     * APPLICATION DEADLOCK
+     * =========================================
+     */
+    if (hypothesis.cause === "APPLICATION_DEADLOCK") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        (item.message.toLowerCase().includes("timeout") ||
+          item.message.toLowerCase().includes("timed out"))
+      ) {
+        score += 0.35;
+
+        reasons.push("The liveness check appears to be timing out.");
+      }
+    }
+
+    if (hypothesis.cause === "APPLICATION_HUNG") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        item.message.toLowerCase().includes("liveness probe")
+      ) {
+        score += 0.45;
+
+        reasons.push("Kubernetes reported a liveness probe failure.");
+      }
+    }
+
+    if (hypothesis.cause === "LIVENESS_PROBE_MISCONFIGURATION") {
+      if (
+        item.type === "KUBERNETES_EVENT" &&
+        typeof item.message === "string" &&
+        item.message.toLowerCase().includes("liveness probe")
+      ) {
+        score += 0.2;
+
+        reasons.push("The workload is failing its configured liveness probe.");
+      }
+    }
   }
 
   return {

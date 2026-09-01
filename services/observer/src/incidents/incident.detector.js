@@ -29,6 +29,11 @@ import {
   READINESS_FAILURE_PRIORITY,
 } from "./rules/readiness-failure.rule.js";
 
+import {
+  detectLivenessFailure,
+  LIVENESS_FAILURE_PRIORITY,
+} from "./rules/liveness-failure.rule.js";
+
 const incidentRules = [
   {
     name: "OOM_KILLED",
@@ -43,6 +48,18 @@ const incidentRules = [
   },
 
   {
+    name: "LIVENESS_FAILURE",
+    priority: LIVENESS_FAILURE_PRIORITY,
+    detect: detectLivenessFailure,
+  },
+
+  {
+    name: "READINESS_FAILURE",
+    priority: READINESS_FAILURE_PRIORITY,
+    detect: detectReadinessFailure,
+  },
+
+  {
     name: "FAILED_SCHEDULING",
     priority: FAILED_SCHEDULING_PRIORITY,
     detect: detectFailedScheduling,
@@ -53,15 +70,11 @@ const incidentRules = [
     priority: POD_CRASH_LOOP_PRIORITY,
     detect: detectPodCrashLoop,
   },
+
   {
     name: "POD_PENDING",
     priority: POD_PENDING_PRIORITY,
     detect: detectPodPending,
-  },
-  {
-    name: "READINESS_FAILURE",
-    priority: READINESS_FAILURE_PRIORITY,
-    detect: detectReadinessFailure,
   },
 ];
 
@@ -85,13 +98,6 @@ export function isIncidentResolved(event, incidentType) {
       return isPodCrashLoopResolved(event);
 
     case "OOM_KILLED":
-      /*
-       * OOMKilled is an observed termination
-       * event, not a persistent waiting state.
-       *
-       * We will resolve it using workload
-       * health/recovery logic later.
-       */
       return false;
 
     case "IMAGE_PULL_FAILURE":
@@ -118,6 +124,9 @@ export function isIncidentResolved(event, incidentType) {
             condition?.type === "Ready" && condition?.status === "True",
         )
       );
+
+    case "LIVENESS_FAILURE":
+      return false;
 
     default:
       return false;

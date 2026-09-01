@@ -10,6 +10,9 @@ function getContainerStatuses(event) {
 }
 
 export function detectPodCrashLoop(event) {
+  if (hasLivenessProbeFailure(event)) {
+    return null;
+  }
   if (event?.resource?.kind !== "Pod") {
     return null;
   }
@@ -114,6 +117,20 @@ export function isPodCrashLoopResolved(event) {
     const waitingReason = container?.state?.waiting?.reason;
 
     return waitingReason !== "CrashLoopBackOff";
+  });
+}
+
+function hasLivenessProbeFailure(event) {
+  const events = event?.kubernetesEvents || [];
+
+  return events.some((item) => {
+    const rawEvent = item?.resource?.raw || item?.resource || item || {};
+
+    const reason = String(rawEvent.reason || "").toLowerCase();
+
+    const message = String(rawEvent.message || "").toLowerCase();
+
+    return reason === "unhealthy" && message.includes("liveness probe");
   });
 }
 

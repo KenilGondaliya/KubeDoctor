@@ -169,10 +169,21 @@ export async function processResourceEvent(event) {
   if (!event?.clusterId || !event?.resource) {
     return {
       detected: false,
-
       incident: null,
     };
   }
+
+  const kubernetesEvents = await loadRelatedKubernetesEvents({
+    clusterId: event.clusterId,
+
+    resourceUid: event.resource.uid,
+  });
+
+  const detectionEvent = {
+    ...event,
+
+    kubernetesEvents,
+  };
 
   /*
    * =========================================
@@ -185,7 +196,7 @@ export async function processResourceEvent(event) {
    * as a resolved CrashLoop just because it is
    * no longer waiting for CrashLoopBackOff.
    */
-  const incident = detectIncident(event);
+  const incident = detectIncident(detectionEvent);
 
   /*
    * =========================================
@@ -483,4 +494,31 @@ export async function processResourceEvent(event) {
 
     incident: created,
   };
+}
+async function loadRelatedKubernetesEvents({ clusterId, resourceUid }) {
+  const result = await db.query(
+    `
+    SELECT
+      uid,
+      kind,
+      name,
+      namespace,
+      resource
+    FROM resource_snapshots
+    WHERE
+      cluster_id = $1
+      AND kind = 'Event'
+    ORDER BY updated_at DESC
+    LIMIT 500
+    `,
+    [clusterId],
+  );
+
+  return result.rows.filter((row) => {
+    const rawEvent = row.resource?.raw || row.resource || {};
+
+    const involvedObject = rawEvent.involvedObject || {};
+
+    return involvedObject.uid === resourceUid;
+  });
 }

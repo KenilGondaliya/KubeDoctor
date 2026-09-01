@@ -231,5 +231,53 @@ export function generateHypotheses({ incident }) {
     );
   }
 
+  if (incident.incident_type === "LIVENESS_FAILURE") {
+    hypotheses.push(
+      {
+        cause: "APPLICATION_HUNG",
+
+        summary:
+          "The application may be running but unable to respond correctly to liveness checks.",
+
+        baseScore: 0.25,
+
+        reasons: [],
+      },
+
+      {
+        cause: "LIVENESS_PROBE_MISCONFIGURATION",
+
+        summary:
+          "The liveness probe configuration may not correctly represent application health.",
+
+        baseScore: 0.2,
+
+        reasons: [],
+      },
+
+      {
+        cause: "APPLICATION_DEADLOCK",
+
+        summary:
+          "The application may be blocked or deadlocked and unable to respond to health checks.",
+
+        baseScore: 0.15,
+
+        reasons: [],
+      },
+
+      {
+        cause: "DEPENDENCY_FAILURE",
+
+        summary:
+          "The application may be failing its liveness check because a required dependency is unavailable.",
+
+        baseScore: 0.1,
+
+        reasons: [],
+      },
+    );
+  }
+
   return hypotheses;
 }
