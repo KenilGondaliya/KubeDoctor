@@ -279,5 +279,64 @@ export function generateHypotheses({ incident }) {
     );
   }
 
+  if (
+  incident.incident_type ===
+  "DEPLOYMENT_UNAVAILABLE"
+) {
+  hypotheses.push(
+    {
+      cause:
+        "POD_FAILURE",
+
+      summary:
+        "The Deployment may be unavailable because its Pods are failing.",
+
+      baseScore:
+        0.25,
+
+      reasons: [],
+    },
+
+    {
+      cause:
+        "READINESS_FAILURE",
+
+      summary:
+        "The Deployment may be unavailable because its Pods are not Ready.",
+
+      baseScore:
+        0.20,
+
+      reasons: [],
+    },
+
+    {
+      cause:
+        "SCHEDULING_FAILURE",
+
+      summary:
+        "The Deployment may be unavailable because its Pods cannot be scheduled.",
+
+      baseScore:
+        0.15,
+
+      reasons: [],
+    },
+
+    {
+      cause:
+        "ROLLOUT_STALLED",
+
+      summary:
+        "The Deployment rollout may have stopped progressing.",
+
+      baseScore:
+        0.15,
+
+      reasons: [],
+    },
+  );
+}
+
   return hypotheses;
 }

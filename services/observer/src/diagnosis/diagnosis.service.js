@@ -9,18 +9,54 @@ import {
 } from "./diagnosis.repository.js";
 
 export async function runDiagnosis(incident) {
+  if (!incident?.id) {
+    throw new Error("Incident is required");
+  }
+
+  /*
+   * =========================================
+   * Load incident evidence
+   * =========================================
+   */
   const evidence = await findIncidentEvidence(incident.id);
 
-  if (evidence.length === 0) {
+  if (!Array.isArray(evidence) || evidence.length === 0) {
     throw new Error("Cannot diagnose incident without evidence");
   }
 
-  const diagnosis = diagnose({
+  /*
+   * =========================================
+   * Run diagnosis
+   * =========================================
+   *
+   * diagnose() is async because Deployment
+   * diagnosis may query child incidents.
+   *
+   * IMPORTANT: await it.
+   */
+  const diagnosis = await diagnose({
     incident,
 
     evidence,
   });
 
+  if (!diagnosis) {
+    throw new Error("Diagnosis engine returned no result");
+  }
+
+  if (!diagnosis.primaryCause) {
+    throw new Error("Diagnosis engine returned no primary cause");
+  }
+
+  if (diagnosis.confidence === undefined || diagnosis.confidence === null) {
+    throw new Error("Diagnosis engine returned no confidence");
+  }
+
+  /*
+   * =========================================
+   * Existing diagnosis
+   * =========================================
+   */
   const existing = await findDiagnosisByIncident(incident.id);
 
   if (existing) {
@@ -31,6 +67,11 @@ export async function runDiagnosis(incident) {
     });
   }
 
+  /*
+   * =========================================
+   * New diagnosis
+   * =========================================
+   */
   return createDiagnosis({
     incident,
 

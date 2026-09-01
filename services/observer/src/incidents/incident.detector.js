@@ -34,6 +34,11 @@ import {
   LIVENESS_FAILURE_PRIORITY,
 } from "./rules/liveness-failure.rule.js";
 
+import {
+  detectDeploymentUnavailable,
+  DEPLOYMENT_UNAVAILABLE_PRIORITY,
+} from "./rules/deployment-unavailable.rule.js";
+
 const incidentRules = [
   {
     name: "OOM_KILLED",
@@ -76,6 +81,15 @@ const incidentRules = [
     priority: POD_PENDING_PRIORITY,
     detect: detectPodPending,
   },
+  {
+  name: "DEPLOYMENT_UNAVAILABLE",
+
+  priority:
+    DEPLOYMENT_UNAVAILABLE_PRIORITY,
+
+  detect:
+    detectDeploymentUnavailable,
+},
 ];
 
 incidentRules.sort((a, b) => b.priority - a.priority);
