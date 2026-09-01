@@ -12,326 +12,244 @@ import { rebuildTopology } from "../topology/topology.service.js";
 
 import { db } from "../config/database.js";
 
-
 export class Reconciler {
-  constructor({
-    kubeContext,
-    clusterId,
-    intervalMs,
-  }) {
-    this.kubeContext =
-      kubeContext;
+  constructor({ kubeContext, clusterId, intervalMs }) {
+    this.kubeContext = kubeContext;
+    this.clusterId = clusterId;
+    this.intervalMs = intervalMs;
 
-    this.clusterId =
-      clusterId;
-
-    this.intervalMs =
-      intervalMs;
-
-    this.running =
-      false;
-
-    this.timer =
-      null;
+    this.running = false;
+    this.timer = null;
   }
-
 
   async reconcile() {
-    console.log(
-      `[Reconciler] Reconciling ${this.clusterId}`,
-    );
+    console.log(`[Reconciler] Reconciling ${this.clusterId}`);
 
+    const coreApi = createCoreApi(this.kubeContext);
 
-    const coreApi =
-      createCoreApi(
-        this.kubeContext,
-      );
+    const appsApi = createAppsApi(this.kubeContext);
 
-    const appsApi =
-      createAppsApi(
-        this.kubeContext,
-      );
-
-    const discoveryApi =
-      createDiscoveryApi(
-        this.kubeContext,
-      );
-
+    const discoveryApi = createDiscoveryApi(this.kubeContext);
 
     const [
-      pods,
-      namespaces,
-      nodes,
-      services,
-      deployments,
-      replicasets,
-      endpointSlices,
-    ] =
-      await Promise.all([
-        coreApi.listPodForAllNamespaces(),
+      podsResponse,
+      namespacesResponse,
+      nodesResponse,
+      servicesResponse,
+      deploymentsResponse,
+      replicasetsResponse,
+      endpointSlicesResponse,
+    ] = await Promise.all([
+      coreApi.listPodForAllNamespaces(),
 
-        coreApi.listNamespace(),
+      coreApi.listNamespace(),
 
-        coreApi.listNode(),
+      coreApi.listNode(),
 
-        coreApi.listServiceForAllNamespaces(),
+      coreApi.listServiceForAllNamespaces(),
 
-        appsApi.listDeploymentForAllNamespaces(),
+      appsApi.listDeploymentForAllNamespaces(),
 
-        appsApi.listReplicaSetForAllNamespaces(),
+      appsApi.listReplicaSetForAllNamespaces(),
 
-        discoveryApi.listEndpointSliceForAllNamespaces(),
-      ]);
+      discoveryApi.listEndpointSliceForAllNamespaces(),
+    ]);
 
-
-    const podItems =
-      pods.body?.items ??
-      pods.items ??
-      [];
+    const podItems = podsResponse?.body?.items ?? podsResponse?.items ?? [];
 
     const namespaceItems =
-      namespaces.body?.items ??
-      namespaces.items ??
-      [];
+      namespacesResponse?.body?.items ?? namespacesResponse?.items ?? [];
 
-    const nodeItems =
-      nodes.body?.items ??
-      nodes.items ??
-      [];
+    const nodeItems = nodesResponse?.body?.items ?? nodesResponse?.items ?? [];
 
     const serviceItems =
-      services.body?.items ??
-      services.items ??
-      [];
+      servicesResponse?.body?.items ?? servicesResponse?.items ?? [];
 
     const deploymentItems =
-      deployments.body?.items ??
-      deployments.items ??
-      [];
+      deploymentsResponse?.body?.items ?? deploymentsResponse?.items ?? [];
 
     const replicaSetItems =
-      replicasets.body?.items ??
-      replicasets.items ??
-      [];
+      replicasetsResponse?.body?.items ?? replicasets?.items ?? [];
 
     const endpointSliceItems =
-      endpointSlices.body?.items ??
-      endpointSlices.items ??
+      endpointSlicesResponse?.body?.items ??
+      endpointSlicesResponse?.items ??
       [];
 
+    /*
+     * =========================================
+     * Publish current Kubernetes state
+     * =========================================
+     */
+
+    await this.publishSnapshot("Pod", podItems);
+
+    await this.publishSnapshot("Namespace", namespaceItems);
+
+    await this.publishSnapshot("Node", nodeItems);
+
+    await this.publishSnapshot("Service", serviceItems);
+
+    await this.publishSnapshot("Deployment", deploymentItems);
+
+    await this.publishSnapshot("ReplicaSet", replicaSetItems);
+
+    await this.publishSnapshot("EndpointSlice", endpointSliceItems);
 
     /*
      * =========================================
-     * Current-state snapshots
+     * Remove stale snapshots
      * =========================================
      */
-    await this.publishSnapshot(
-      "Pod",
-      podItems,
-    );
 
-    await this.publishSnapshot(
-      "Namespace",
-      namespaceItems,
-    );
+    await pruneSnapshots(this.clusterId, "Pod", podItems);
 
-    await this.publishSnapshot(
-      "Node",
-      nodeItems,
-    );
+    await pruneSnapshots(this.clusterId, "Namespace", namespaceItems);
 
-    await this.publishSnapshot(
-      "Service",
-      serviceItems,
-    );
+    await pruneSnapshots(this.clusterId, "Node", nodeItems);
 
-    await this.publishSnapshot(
-      "Deployment",
-      deploymentItems,
-    );
+    await pruneSnapshots(this.clusterId, "Service", serviceItems);
 
-    await this.publishSnapshot(
-      "ReplicaSet",
-      replicaSetItems,
-    );
+    await pruneSnapshots(this.clusterId, "Deployment", deploymentItems);
 
-    await this.publishSnapshot(
-      "EndpointSlice",
-      endpointSliceItems,
-    );
+    await pruneSnapshots(this.clusterId, "ReplicaSet", replicaSetItems);
 
+    await pruneSnapshots(this.clusterId, "EndpointSlice", endpointSliceItems);
 
     /*
      * =========================================
-     * Remove deleted Pods
+     * Rebuild topology after snapshots are
+     * completely refreshed.
      * =========================================
      */
-    await pruneSnapshots(
-      this.clusterId,
-      "Pod",
-      podItems,
-    );
 
+    await rebuildTopology(this.clusterId);
 
-    /*
-     * =========================================
-     * Remove deleted Services
-     * =========================================
-     */
-    await pruneSnapshots(
-      this.clusterId,
-      "Service",
-      serviceItems,
-    );
-
-
-    /*
-     * =========================================
-     * Remove deleted Deployments
-     * =========================================
-     */
-    await pruneSnapshots(
-      this.clusterId,
-      "Deployment",
-      deploymentItems,
-    );
-
-
-    /*
-     * =========================================
-     * Remove deleted ReplicaSets
-     * =========================================
-     */
-    await pruneSnapshots(
-      this.clusterId,
-      "ReplicaSet",
-      replicaSetItems,
-    );
-
-
-    /*
-     * =========================================
-     * Remove deleted EndpointSlices
-     * =========================================
-     */
-    await pruneSnapshots(
-      this.clusterId,
-      "EndpointSlice",
-      endpointSliceItems,
-    );
-
-
-    /*
-     * =========================================
-     * Rebuild topology
-     * =========================================
-     */
-    await rebuildTopology(
-      this.clusterId,
-    );
-
-
-    console.log(
-      `[Reconciler] Completed ${this.clusterId}`,
-    );
+    console.log(`[Reconciler] Completed ${this.clusterId}`);
   }
 
+  async publishSnapshot(kind, resources) {
+    if (!Array.isArray(resources)) {
+      console.warn(`[Reconciler] ${kind} resources is not an array`);
 
-  async publishSnapshot(
-    kind,
-    resources,
-  ) {
+      return;
+    }
+
     console.log(
       `[Reconciler] Publishing ${kind}: ${resources.length} resources`,
     );
 
+    for (const object of resources) {
+      if (!object) {
+        continue;
+      }
 
-    for (
-      const object
-      of resources
-    ) {
-      const event =
-        normalizeResourceEvent({
-          clusterId:
-            this.clusterId,
+      /*
+       * Some Kubernetes client responses do not
+       * contain top-level `kind`.
+       *
+       * The collection itself tells us what kind
+       * this object is, so inject it explicitly.
+       */
+      const normalizedObject = {
+        ...object,
 
-          type:
-            "RECONCILE",
+        kind: object?.kind || kind,
+      };
 
-          object,
-        });
+      const event = normalizeResourceEvent({
+        clusterId: this.clusterId,
 
+        type: "RECONCILE",
 
-      await publishResourceEvent(
-        event,
-      );
+        kind,
+
+        object: normalizedObject,
+      });
+
+      /*
+       * Defensive validation.
+       */
+      if (!event?.resource?.kind) {
+        console.warn(
+          `[Reconciler] Skipping ${kind} resource without resolved kind: ${
+            object?.metadata?.name || "unknown"
+          }`,
+        );
+
+        continue;
+      }
+
+      if (!event?.resource?.name) {
+        console.warn(`[Reconciler] Skipping ${kind} resource without name`);
+
+        continue;
+      }
+
+      await publishResourceEvent(event);
     }
   }
-
 
   async start() {
-    this.running =
-      true;
+    if (this.running) {
+      return;
+    }
 
-    await this.reconcile();
+    this.running = true;
 
+    try {
+      await this.reconcile();
+    } catch (error) {
+      console.error("[Reconciler] Initial reconciliation failed:", error);
+    }
 
-    this.timer =
-      setInterval(
-        () => {
-          this.reconcile().catch(
-            (error) => {
-              console.error(
-                "[Reconciler] Failed:",
-                error,
-              );
-            },
-          );
-        },
+    this.timer = setInterval(
+      () => {
+        if (!this.running) {
+          return;
+        }
 
-        this.intervalMs,
-      );
+        this.reconcile().catch((error) => {
+          console.error("[Reconciler] Reconciliation failed:", error);
+        });
+      },
+
+      this.intervalMs,
+    );
   }
 
-
   stop() {
-    this.running =
-      false;
-
+    this.running = false;
 
     if (this.timer) {
-      clearInterval(
-        this.timer,
-      );
+      clearInterval(this.timer);
 
-      this.timer =
-        null;
+      this.timer = null;
     }
+
+    console.log("[Reconciler] Stopped");
   }
 }
 
+/*
+ * ===========================================
+ * Remove stale snapshots
+ * ===========================================
+ */
+async function pruneSnapshots(clusterId, kind, currentResources) {
+  if (!Array.isArray(currentResources)) {
+    return;
+  }
 
-async function pruneSnapshots(
-  clusterId,
-  kind,
-  currentResources,
-) {
-  const currentUids =
-    currentResources
-      .map(
-        (resource) =>
-          resource?.metadata?.uid,
-      )
-      .filter(Boolean);
-
+  const currentUids = currentResources
+    .map((resource) => resource?.metadata?.uid)
+    .filter(Boolean);
 
   /*
-   * If Kubernetes currently has no objects
-   * of this kind, remove all stored snapshots.
+   * Kubernetes currently has no resources
+   * of this kind.
    */
-  if (
-    currentUids.length === 0
-  ) {
+  if (currentUids.length === 0) {
     await db.query(
       `
       DELETE FROM resource_snapshots
@@ -339,15 +257,11 @@ async function pruneSnapshots(
         cluster_id = $1
         AND kind = $2
       `,
-      [
-        clusterId,
-        kind,
-      ],
+      [clusterId, kind],
     );
 
     return;
   }
-
 
   await db.query(
     `
@@ -359,10 +273,6 @@ async function pruneSnapshots(
         uid = ANY($3::text[])
       )
     `,
-    [
-      clusterId,
-      kind,
-      currentUids,
-    ],
+    [clusterId, kind, currentUids],
   );
 }

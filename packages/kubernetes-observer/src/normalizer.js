@@ -1,7 +1,36 @@
 import crypto from "node:crypto";
 
-export function normalizeResourceEvent({ clusterId, type, kind, object }) {
+export function normalizeResourceEvent({
+  clusterId,
+  type,
+  kind = null,
+  object = null,
+}) {
+  if (!object) {
+    throw new Error("Cannot normalize empty Kubernetes resource");
+  }
+
   const metadata = object?.metadata || {};
+
+  /*
+   * Explicit kind is authoritative.
+   *
+   * This is important for Reconciler calls,
+   * because the collection itself tells us
+   * the resource kind.
+   */
+  const resolvedKind = kind ?? object?.kind ?? null;
+
+  if (!resolvedKind) {
+    throw new Error(
+      `Cannot normalize Kubernetes resource without kind: ${
+        metadata?.name || "unknown"
+      }`,
+    );
+  }
+
+  const resolvedApiVersion =
+    object?.apiVersion ?? metadata?.apiVersion ?? getApiVersion(resolvedKind);
 
   return {
     eventId: crypto.randomUUID(),
@@ -15,28 +44,27 @@ export function normalizeResourceEvent({ clusterId, type, kind, object }) {
     timestamp: new Date().toISOString(),
 
     resource: {
-      apiVersion:
-        object?.apiVersion || metadata?.apiVersion || getApiVersion(kind),
+      apiVersion: resolvedApiVersion,
 
-      kind: object?.kind || kind || null,
+      kind: resolvedKind,
 
-      name: metadata.name || null,
+      name: metadata?.name ?? null,
 
-      namespace: metadata.namespace || null,
+      namespace: metadata?.namespace ?? null,
 
-      uid: metadata.uid || null,
+      uid: metadata?.uid ?? null,
 
-      resourceVersion: metadata.resourceVersion || null,
+      resourceVersion: metadata?.resourceVersion ?? null,
 
-      labels: metadata.labels || {},
+      labels: metadata?.labels ?? {},
 
-      annotations: metadata.annotations || {},
+      annotations: metadata?.annotations ?? {},
 
       metadata,
 
-      spec: object?.spec || {},
+      spec: object?.spec ?? {},
 
-      status: object?.status || {},
+      status: object?.status ?? {},
 
       raw: object,
     },
