@@ -1,11 +1,23 @@
 const DEPLOYMENT_UNAVAILABLE = "DEPLOYMENT_UNAVAILABLE";
 
+function getStatus(event) {
+  return event?.resource?.status || event?.resource?.raw?.status || {};
+}
+
+function getSpec(event) {
+  return event?.resource?.spec || event?.resource?.raw?.spec || {};
+}
+
 function getConditions(event) {
   return (
     event?.resource?.status?.conditions ||
     event?.resource?.raw?.status?.conditions ||
     []
   );
+}
+
+function findCondition(conditions, type) {
+  return conditions.find((condition) => condition?.type === type);
 }
 
 export function detectDeploymentUnavailable(event) {
@@ -19,39 +31,84 @@ export function detectDeploymentUnavailable(event) {
     return null;
   }
 
-  const status = event.resource?.status || event.resource?.raw?.status || {};
+  const status = getStatus(event);
 
-  const desiredReplicas = Number(status.replicas ?? 0);
+  const spec = getSpec(event);
+
+  const conditions = getConditions(event);
+
+  const desiredReplicas = Number(status.replicas ?? spec.replicas ?? 0);
 
   const availableReplicas = Number(status.availableReplicas ?? 0);
 
-  const unavailableReplicas = Number(status.unavailableReplicas ?? 0);
+  const readyReplicas = Number(status.readyReplicas ?? availableReplicas);
+
+  const unavailableReplicas = Number(
+    status.unavailableReplicas ??
+      Math.max(desiredReplicas - availableReplicas, 0),
+  );
 
   /*
-   * No unavailable replicas means the
-   * Deployment is currently available.
+   * -----------------------------------------
+   * Available condition
+   * -----------------------------------------
    */
-  if (unavailableReplicas <= 0 && availableReplicas >= desiredReplicas) {
+  const availableCondition = findCondition(conditions, "Available");
+
+  /*
+   * -----------------------------------------
+   * Progressing condition
+   * -----------------------------------------
+   */
+  const progressingCondition = findCondition(conditions, "Progressing");
+
+  const explicitlyUnavailable = availableCondition?.status === "False";
+
+  const replicasUnavailable =
+    desiredReplicas > 0 && availableReplicas < desiredReplicas;
+
+  const explicitlyStalled =
+    progressingCondition?.status === "False" &&
+    (progressingCondition.reason === "ProgressDeadlineExceeded" ||
+      progressingCondition.reason === "ReplicaSetUpdated" ||
+      progressingCondition.reason === "ProgressDeadlineExceeded");
+
+  /*
+   * If Kubernetes explicitly says the
+   * Deployment is unavailable, detect it.
+   */
+  if (!explicitlyUnavailable && !replicasUnavailable && !explicitlyStalled) {
     return null;
   }
 
   /*
-   * A zero-replica Deployment is not
-   * automatically an incident.
+   * A Deployment with zero desired replicas
+   * should not be considered unavailable.
    */
   if (desiredReplicas === 0) {
     return null;
   }
 
-  const conditions = getConditions(event);
+  /*
+   * -----------------------------------------
+   * Severity
+   * -----------------------------------------
+   */
+  const severity =
+    availableReplicas === 0 && desiredReplicas > 0 ? "HIGH" : "MEDIUM";
 
-  const availableCondition = conditions.find(
-    (condition) => condition?.type === "Available",
-  );
+  /*
+   * -----------------------------------------
+   * Determine primary availability reason
+   * -----------------------------------------
+   */
+  let reason = "MinimumReplicasUnavailable";
 
-  const progressingCondition = conditions.find(
-    (condition) => condition?.type === "Progressing",
-  );
+  if (progressingCondition?.reason === "ProgressDeadlineExceeded") {
+    reason = "ProgressDeadlineExceeded";
+  } else if (availableCondition?.reason) {
+    reason = availableCondition.reason;
+  }
 
   return {
     incidentType: DEPLOYMENT_UNAVAILABLE,
@@ -64,7 +121,7 @@ export function detectDeploymentUnavailable(event) {
 
     namespace: namespace || null,
 
-    severity: unavailableReplicas >= desiredReplicas ? "HIGH" : "MEDIUM",
+    severity,
 
     title: `Deployment ${name} is unavailable`,
 
@@ -77,9 +134,13 @@ export function detectDeploymentUnavailable(event) {
 
       availableReplicas,
 
+      readyReplicas,
+
       unavailableReplicas,
 
       updatedReplicas: Number(status.updatedReplicas ?? 0),
+
+      availabilityReason: reason,
 
       availableCondition: availableCondition
         ? {
@@ -88,6 +149,8 @@ export function detectDeploymentUnavailable(event) {
             reason: availableCondition.reason || null,
 
             message: availableCondition.message || null,
+
+            lastTransitionTime: availableCondition.lastTransitionTime || null,
           }
         : null,
 
@@ -98,6 +161,8 @@ export function detectDeploymentUnavailable(event) {
             reason: progressingCondition.reason || null,
 
             message: progressingCondition.message || null,
+
+            lastTransitionTime: progressingCondition.lastTransitionTime || null,
           }
         : null,
     },

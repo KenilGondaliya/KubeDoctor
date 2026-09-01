@@ -8,12 +8,18 @@ import { normalizeResourceEvent } from "../../../../packages/kubernetes-observer
 
 
 export class WatchManager {
-  constructor({ kubeConfig, clusterId }) {
+  constructor({
+    kubeConfig,
+    clusterId,
+  }) {
     this.kubeConfig = kubeConfig;
 
     this.clusterId = clusterId;
 
-    this.watch = new k8s.Watch(kubeConfig);
+    this.watch =
+      new k8s.Watch(
+        kubeConfig,
+      );
 
     this.running = true;
 
@@ -22,31 +28,59 @@ export class WatchManager {
 
 
   async start() {
+    this.running = true;
+
     this.watchTasks = [
-      this.watchResource("/api/v1/pods"),
+      this.watchResource(
+        "/api/v1/pods",
+      ),
 
-      this.watchResource("/api/v1/namespaces"),
+      this.watchResource(
+        "/api/v1/namespaces",
+      ),
 
-      this.watchResource("/api/v1/nodes"),
+      this.watchResource(
+        "/api/v1/nodes",
+      ),
 
-      this.watchResource("/api/v1/events"),
+      this.watchResource(
+        "/api/v1/events",
+      ),
 
-      this.watchResource("/apis/apps/v1/deployments"),
+      this.watchResource(
+        "/api/v1/services",
+      ),
 
-      this.watchResource("/apis/apps/v1/replicasets"),
+      this.watchResource(
+        "/apis/apps/v1/deployments",
+      ),
 
-      this.watchResource("/api/v1/services"),
+      this.watchResource(
+        "/apis/apps/v1/replicasets",
+      ),
+
+      /*
+       * EndpointSlice is required for modern
+       * Service endpoint discovery.
+       */
+      this.watchResource(
+        "/apis/discovery.k8s.io/v1/endpointslices",
+      ),
     ];
 
-    await Promise.all(this.watchTasks);
+    await Promise.all(
+      this.watchTasks,
+    );
   }
 
 
-  async watchResource(path) {
+  async watchResource(
+    path,
+  ) {
     while (this.running) {
       try {
         console.log(
-          `[Observer] Watching ${path}`
+          `[Observer] Watching ${path}`,
         );
 
 
@@ -54,41 +88,38 @@ export class WatchManager {
           path,
 
           {
-            allowWatchBookmarks: true,
+            allowWatchBookmarks:
+              true,
           },
 
-
-          async (type, object) => {
+          async (
+            type,
+            object,
+          ) => {
             try {
-
               /*
-               * Kubernetes watch can send
-               * BOOKMARK/control events.
-               *
-               * These events are not actual
-               * Kubernetes resources.
+               * Ignore Kubernetes control/bookmark
+               * events that don't represent an object.
                */
-              const kind = object?.kind;
+              const kind =
+                object?.kind;
 
               const name =
                 object?.metadata?.name;
 
 
-              /*
-               * Ignore invalid/control events.
-               */
-              if (!kind || !name) {
+              if (
+                !kind ||
+                !name
+              ) {
                 console.log(
-                  `[Observer] Ignoring non-resource watch event: ${type}`
+                  `[Observer] Ignoring non-resource watch event: ${type}`,
                 );
 
                 return;
               }
 
 
-              /*
-               * Normalize Kubernetes resource.
-               */
               const event =
                 normalizeResourceEvent({
                   clusterId:
@@ -100,72 +131,52 @@ export class WatchManager {
                 });
 
 
-              /*
-               * Publish normalized event
-               * to NATS.
-               */
               await publishResourceEvent(
-                event
+                event,
               );
 
             } catch (error) {
-
               console.error(
                 "[Observer] Event processing error:",
-                error
+                error,
               );
-
             }
           },
 
-
           (error) => {
-
             if (error) {
-
               console.error(
                 `[Observer] Watch error ${path}:`,
-                error
+                error,
               );
-
             }
-
-          }
+          },
         );
 
 
         /*
          * Watch connection ended.
-         *
          * Reconnect automatically.
          */
         if (this.running) {
-
           console.warn(
-            `[Observer] Watch ended ${path}. Reconnecting...`
+            `[Observer] Watch ended ${path}. Reconnecting...`,
           );
 
           await this.sleep(
-            env.reconnectDelayMs
+            env.reconnectDelayMs,
           );
-
         }
 
       } catch (error) {
-
         console.error(
           `[Observer] Watch failed ${path}:`,
-          error
+          error,
         );
 
-
-        /*
-         * Prevent tight reconnect loops.
-         */
         await this.sleep(
-          env.reconnectDelayMs
+          env.reconnectDelayMs,
         );
-
       }
     }
   }
@@ -175,7 +186,7 @@ export class WatchManager {
     this.running = false;
 
     console.log(
-      "[Observer] Stopping WatchManager..."
+      "[Observer] Stopping WatchManager...",
     );
   }
 
@@ -183,7 +194,10 @@ export class WatchManager {
   sleep(ms) {
     return new Promise(
       (resolve) =>
-        setTimeout(resolve, ms)
+        setTimeout(
+          resolve,
+          ms,
+        ),
     );
   }
 }

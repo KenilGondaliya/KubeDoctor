@@ -279,64 +279,97 @@ export function generateHypotheses({ incident }) {
     );
   }
 
-  if (
-  incident.incident_type ===
-  "DEPLOYMENT_UNAVAILABLE"
-) {
-  hypotheses.push(
-    {
-      cause:
-        "POD_FAILURE",
+  if (incident.incident_type === "DEPLOYMENT_UNAVAILABLE") {
+    hypotheses.push(
+      {
+        cause: "POD_FAILURE",
 
-      summary:
-        "The Deployment may be unavailable because its Pods are failing.",
+        summary:
+          "The Deployment may be unavailable because its Pods are failing.",
 
-      baseScore:
-        0.25,
+        baseScore: 0.25,
 
-      reasons: [],
-    },
+        reasons: [],
+      },
 
-    {
-      cause:
-        "READINESS_FAILURE",
+      {
+        cause: "READINESS_FAILURE",
 
-      summary:
-        "The Deployment may be unavailable because its Pods are not Ready.",
+        summary:
+          "The Deployment may be unavailable because its Pods are not Ready.",
 
-      baseScore:
-        0.20,
+        baseScore: 0.2,
 
-      reasons: [],
-    },
+        reasons: [],
+      },
 
-    {
-      cause:
-        "SCHEDULING_FAILURE",
+      {
+        cause: "SCHEDULING_FAILURE",
 
-      summary:
-        "The Deployment may be unavailable because its Pods cannot be scheduled.",
+        summary:
+          "The Deployment may be unavailable because its Pods cannot be scheduled.",
 
-      baseScore:
-        0.15,
+        baseScore: 0.15,
 
-      reasons: [],
-    },
+        reasons: [],
+      },
 
-    {
-      cause:
-        "ROLLOUT_STALLED",
+      {
+        cause: "ROLLOUT_STALLED",
 
-      summary:
-        "The Deployment rollout may have stopped progressing.",
+        summary: "The Deployment rollout may have stopped progressing.",
 
-      baseScore:
-        0.15,
+        baseScore: 0.15,
 
-      reasons: [],
-    },
-  );
-}
+        reasons: [],
+      },
+    );
+  }
+
+  if (incident.incident_type === "SERVICE_NO_ENDPOINTS") {
+    hypotheses.push(
+      {
+        cause: "NO_MATCHING_PODS",
+
+        summary: "The Service may not have any Pods matching its selector.",
+
+        baseScore: 0.2,
+
+        reasons: [],
+      },
+
+      {
+        cause: "READINESS_FAILURE",
+
+        summary: "The Service may have matching Pods, but they are not Ready.",
+
+        baseScore: 0.25,
+
+        reasons: [],
+      },
+
+      {
+        cause: "POD_FAILURE",
+
+        summary: "The Service may have backends that are failing.",
+
+        baseScore: 0.15,
+
+        reasons: [],
+      },
+
+      {
+        cause: "ENDPOINT_DISCOVERY_FAILURE",
+
+        summary:
+          "The Kubernetes endpoint discovery state may not contain usable backends.",
+
+        baseScore: 0.15,
+
+        reasons: [],
+      },
+    );
+  }
 
   return hypotheses;
 }

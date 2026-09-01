@@ -234,3 +234,131 @@ export function collectKubernetesEventEvidence({ events }) {
     };
   });
 }
+
+export function collectServiceEvidence({
+  incident,
+  snapshot,
+  endpointSlices = [],
+}) {
+  const evidence = [];
+
+  const resource = snapshot.resource || {};
+
+  const selector =
+    resource.spec?.selector || resource.raw?.spec?.selector || {};
+
+  /*
+   * -----------------------------------------
+   * 1. Service state
+   * -----------------------------------------
+   */
+  evidence.push({
+    evidenceType: EvidenceType.RESOURCE_STATE,
+
+    sourceType: "kubernetes.service",
+
+    sourceUid: snapshot.uid,
+
+    sourceKind: "Service",
+
+    sourceName: snapshot.name,
+
+    namespace: snapshot.namespace,
+
+    summary: `Current state of Service ${snapshot.name}`,
+
+    data: {
+      type: resource.spec?.type || resource.raw?.spec?.type || null,
+
+      clusterIP:
+        resource.spec?.clusterIP || resource.raw?.spec?.clusterIP || null,
+
+      selector,
+
+      ports: resource.spec?.ports || resource.raw?.spec?.ports || [],
+    },
+
+    confidence: 1.0,
+
+    supports: true,
+
+    observedAt: new Date(),
+  });
+
+  /*
+   * -----------------------------------------
+   * 2. EndpointSlice state
+   * -----------------------------------------
+   */
+  if (endpointSlices.length > 0) {
+    const slices = endpointSlices.map((slice) => {
+      const raw = slice?.resource?.raw || slice?.resource || slice || {};
+
+      const endpoints = Array.isArray(raw.endpoints) ? raw.endpoints : [];
+
+      return {
+        uid: raw.metadata?.uid || slice.uid || null,
+
+        name: raw.metadata?.name || slice.name || null,
+
+        endpoints: endpoints.map((endpoint) => ({
+          addresses: endpoint.addresses || [],
+
+          ready: endpoint.conditions?.ready ?? false,
+
+          serving: endpoint.conditions?.serving ?? false,
+
+          terminating: endpoint.conditions?.terminating ?? false,
+
+          targetRef: endpoint.targetRef || null,
+        })),
+      };
+    });
+
+    const totalEndpoints = slices.reduce(
+      (total, slice) => total + slice.endpoints.length,
+      0,
+    );
+
+    const readyEndpoints = slices.reduce(
+      (total, slice) =>
+        total +
+        slice.endpoints.filter((endpoint) => endpoint.ready === true).length,
+      0,
+    );
+
+    evidence.push({
+      evidenceType: EvidenceType.ENDPOINT_CONTEXT,
+
+      sourceType: "kubernetes.endpointSlice",
+
+      sourceUid: snapshot.uid,
+
+      sourceKind: "Service",
+
+      sourceName: snapshot.name,
+
+      namespace: snapshot.namespace,
+
+      summary: `EndpointSlice state for Service ${snapshot.name}`,
+
+      data: {
+        endpointSliceCount: slices.length,
+
+        totalEndpoints,
+
+        readyEndpoints,
+
+        slices,
+      },
+
+      confidence: 1.0,
+
+      supports: true,
+
+      observedAt: new Date(),
+    });
+  }
+
+  return evidence;
+}

@@ -29,3 +29,9 @@ export function createLogApi(contextName) {
 
   return config.makeApiClient(k8s.CoreV1Api);
 }
+
+export function createDiscoveryApi(kubeContext) {
+  const kubeConfig = loadKubeConfig(kubeContext);
+
+  return kubeConfig.makeApiClient(k8s.DiscoveryV1Api);
+}

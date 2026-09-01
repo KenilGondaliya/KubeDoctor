@@ -178,12 +178,21 @@ export async function processResourceEvent(event) {
 
     resourceUid: event.resource.uid,
   });
+  let detectionEvent = event;
 
-  const detectionEvent = {
-    ...event,
+  if (event.resource.kind === "Service") {
+    const endpointSlices = await loadServiceEndpointSlices({
+      clusterId: event.clusterId,
 
-    kubernetesEvents,
-  };
+      serviceUid: event.resource.uid,
+    });
+
+    detectionEvent = {
+      ...event,
+
+      endpointSlices,
+    };
+  }
 
   /*
    * =========================================
@@ -520,5 +529,35 @@ async function loadRelatedKubernetesEvents({ clusterId, resourceUid }) {
     const involvedObject = rawEvent.involvedObject || {};
 
     return involvedObject.uid === resourceUid;
+  });
+}
+
+async function loadServiceEndpointSlices({ clusterId, serviceUid }) {
+  const result = await db.query(
+    `
+    SELECT
+      uid,
+      kind,
+      name,
+      namespace,
+      resource
+    FROM resource_snapshots
+    WHERE
+      cluster_id = $1
+      AND kind = 'EndpointSlice'
+    `,
+    [clusterId],
+  );
+
+  return result.rows.filter((row) => {
+    const raw = row.resource?.raw || row.resource || {};
+
+    const owners = raw.metadata?.ownerReferences || [];
+
+    /*
+     * Preferred relationship:
+     * EndpointSlice owned by Service.
+     */
+    return owners.some((owner) => owner.uid === serviceUid);
   });
 }

@@ -1,5 +1,6 @@
 import {
   collectPodEvidence,
+  collectServiceEvidence,
   collectKubernetesEventEvidence,
 } from "./evidence.collector.js";
 
@@ -12,6 +13,8 @@ import {
   collectContainerLogs,
   buildContainerLogEvidence,
 } from "./log.collector.js";
+
+import { db } from "../config/database.js";
 
 import { env } from "../config/env.js";
 
@@ -109,6 +112,24 @@ export async function collectIncidentEvidence({ incident, snapshot }) {
       ...collectPodEvidence({
         incident,
         snapshot,
+      }),
+    );
+  }
+
+  if (snapshot.kind === "Service") {
+    const endpointSlices = await findServiceEndpointSlices({
+      clusterId: incident.cluster_id,
+
+      serviceUid: snapshot.uid,
+    });
+
+    evidence.push(
+      ...collectServiceEvidence({
+        incident,
+
+        snapshot,
+
+        endpointSlices,
       }),
     );
   }
@@ -289,4 +310,62 @@ export async function collectIncidentEvidence({ incident, snapshot }) {
   );
 
   return saved;
+}
+
+
+async function findServiceEndpointSlices({
+  clusterId,
+  serviceUid,
+  serviceName,
+}) {
+  const result =
+    await db.query(
+      `
+      SELECT
+        uid,
+        kind,
+        name,
+        namespace,
+        resource
+      FROM resource_snapshots
+      WHERE
+        cluster_id = $1
+        AND kind = 'EndpointSlice'
+      `,
+      [
+        clusterId,
+      ],
+    );
+
+
+  return result.rows.filter(
+    (row) => {
+      const raw =
+        row.resource?.raw ||
+        row.resource ||
+        {};
+
+      const owners =
+        raw.metadata
+          ?.ownerReferences ||
+        [];
+
+      const labels =
+        raw.metadata?.labels ||
+        {};
+
+
+      return (
+        owners.some(
+          (owner) =>
+            owner.uid ===
+            serviceUid,
+        ) ||
+        labels[
+          "kubernetes.io/service-name"
+        ] ===
+          serviceName
+      );
+    },
+  );
 }

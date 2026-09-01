@@ -39,6 +39,11 @@ import {
   DEPLOYMENT_UNAVAILABLE_PRIORITY,
 } from "./rules/deployment-unavailable.rule.js";
 
+import {
+  detectServiceNoEndpoints,
+  SERVICE_NO_ENDPOINTS_PRIORITY,
+} from "./rules/service-no-endpoints.rule.js";
+
 const incidentRules = [
   {
     name: "OOM_KILLED",
@@ -82,14 +87,19 @@ const incidentRules = [
     detect: detectPodPending,
   },
   {
-  name: "DEPLOYMENT_UNAVAILABLE",
+    name: "DEPLOYMENT_UNAVAILABLE",
 
-  priority:
-    DEPLOYMENT_UNAVAILABLE_PRIORITY,
+    priority: DEPLOYMENT_UNAVAILABLE_PRIORITY,
 
-  detect:
-    detectDeploymentUnavailable,
-},
+    detect: detectDeploymentUnavailable,
+  },
+  {
+    name: "SERVICE_NO_ENDPOINTS",
+
+    priority: SERVICE_NO_ENDPOINTS_PRIORITY,
+
+    detect: detectServiceNoEndpoints,
+  },
 ];
 
 incidentRules.sort((a, b) => b.priority - a.priority);

@@ -1,6 +1,10 @@
 import { db } from "../config/database.js";
 
-export async function findChildIncidents({ clusterId, workloadUid }) {
+export async function findChildIncidents({
+  clusterId,
+  workloadUid,
+  excludeIncidentId = null,
+}) {
   const result = await db.query(
     `
     SELECT
@@ -19,6 +23,10 @@ export async function findChildIncidents({ clusterId, workloadUid }) {
     WHERE
       cluster_id = $1
       AND workload_uid = $2
+      AND (
+        $3::uuid IS NULL
+        OR id <> $3
+      )
     ORDER BY
       CASE severity
         WHEN 'CRITICAL' THEN 1
@@ -29,8 +37,32 @@ export async function findChildIncidents({ clusterId, workloadUid }) {
       END,
       last_seen_at DESC
     `,
-    [clusterId, workloadUid],
+    [clusterId, workloadUid, excludeIncidentId],
   );
 
   return result.rows;
+}
+
+export async function findDiagnosisByIncidentId(incidentId) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      incident_id,
+      status,
+      primary_cause,
+      confidence,
+      summary,
+      reasoning,
+      created_at,
+      updated_at
+    FROM diagnoses
+    WHERE incident_id = $1
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [incidentId],
+  );
+
+  return result.rows[0] || null;
 }

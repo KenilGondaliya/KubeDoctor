@@ -62,6 +62,9 @@ function getApiVersion(kind) {
     case "ReplicaSet":
       return "apps/v1";
 
+    case "EndpointSlice":
+      return "discovery.k8s.io/v1";
+
     default:
       return null;
   }

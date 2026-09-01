@@ -16,35 +16,29 @@ export async function diagnose({ incident, evidence }) {
   }
 
   /*
-   * Normalize evidence before diagnosis.
+   * -----------------------------------------
+   * Normalize evidence
+   * -----------------------------------------
    */
   const normalizedEvidence = buildDiagnosisEvidence(evidence);
 
   /*
-   * =========================================
-   * Deployment-level diagnosis
-   * =========================================
-   *
-   * Deployments are higher-level resources.
-   * Their availability problems can often be
-   * explained by active child incidents.
-   *
-   * diagnoseDeployment() is asynchronous
-   * because it queries child incidents.
+   * -----------------------------------------
+   * Deployment-specific diagnosis
+   * -----------------------------------------
    */
   if (incident.incident_type === "DEPLOYMENT_UNAVAILABLE") {
     const deploymentDiagnosis = await diagnoseDeployment({
       incident,
     });
 
-    /*
-     * Use the deployment-specific diagnosis
-     * when child incident information exists
-     * or when the deployment fallback is useful.
-     */
     if (deploymentDiagnosis) {
       const childEvidence = Array.isArray(deploymentDiagnosis.evidence)
         ? deploymentDiagnosis.evidence
+        : [];
+
+      const causalChain = Array.isArray(deploymentDiagnosis.causalChain)
+        ? deploymentDiagnosis.causalChain
         : [];
 
       return {
@@ -71,6 +65,8 @@ export async function diagnose({ incident, evidence }) {
 
           alternatives: [],
 
+          causalChain,
+
           evidence: [
             ...normalizedEvidence,
 
@@ -96,9 +92,9 @@ export async function diagnose({ incident, evidence }) {
   }
 
   /*
-   * =========================================
+   * -----------------------------------------
    * Generic diagnosis pipeline
-   * =========================================
+   * -----------------------------------------
    */
   const hypotheses = generateHypotheses({
     incident,
@@ -112,9 +108,6 @@ export async function diagnose({ incident, evidence }) {
     );
   }
 
-  /*
-   * Score every hypothesis.
-   */
   const scored = hypotheses
     .map((hypothesis) =>
       scoreHypothesis({
