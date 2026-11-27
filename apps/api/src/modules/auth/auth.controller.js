@@ -1,6 +1,6 @@
 import { registerSchema, loginSchema } from "./auth.schema.js";
 
-import { registerUser, loginUser } from "./auth.service.js";
+import { registerUser, loginUser, refreshUserTokens } from "./auth.service.js";
 
 export async function register(req, res, next) {
   try {
@@ -27,6 +27,26 @@ export async function login(req, res, next) {
       success: true,
       data: result,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function refresh(req, res, next) {
+  try {
+    const { refreshToken } = req.body;
+    if (typeof refreshToken !== "string" || !refreshToken) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "REFRESH_TOKEN_REQUIRED",
+          message: "Refresh token is required",
+        },
+      });
+    }
+
+    const result = await refreshUserTokens(refreshToken);
+    res.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }

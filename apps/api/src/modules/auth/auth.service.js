@@ -2,7 +2,8 @@ import {
   hashPassword,
   comparePassword,
   generateAccessToken,
-  generateRefreshToken
+  generateRefreshToken,
+  verifyToken,
 } from "./auth.utils.js";
 
 import { db } from "../../database/postgres.js";
@@ -206,5 +207,39 @@ export async function loginUser({
     accessToken,
 
     refreshToken
+  };
+}
+
+export async function refreshUserTokens(refreshToken) {
+  let payload;
+  try {
+    payload = verifyToken(refreshToken);
+  } catch {
+    const error = new Error("Refresh token is invalid or expired");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  if (payload.type !== "refresh" || !payload.sub) {
+    const error = new Error("A valid refresh token is required");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const result = await db.query(
+    "SELECT id, email FROM users WHERE id = $1",
+    [payload.sub],
+  );
+  const user = result.rows[0];
+  if (!user) {
+    const error = new Error("Refresh token user no longer exists");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return {
+    user: { id: user.id, email: user.email },
+    accessToken: generateAccessToken(user),
+    refreshToken: generateRefreshToken(user),
   };
 }

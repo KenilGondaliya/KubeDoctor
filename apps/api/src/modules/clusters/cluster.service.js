@@ -199,6 +199,9 @@ export async function testConnection(
     };
 
   } catch (error) {
+    const connectionError =
+      error.cause?.message || error.message || "Unknown Kubernetes connection error";
+    error.message = `Kubernetes context '${cluster.kube_context}' connection failed: ${connectionError}`;
 
     await db.query(
       `
@@ -216,6 +219,8 @@ export async function testConnection(
       ]
     );
 
+
+    error.statusCode = 502;
 
     throw error;
   }

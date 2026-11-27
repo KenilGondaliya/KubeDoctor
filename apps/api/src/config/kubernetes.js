@@ -63,6 +63,17 @@ export function createNetworkingV1Api(
   );
 }
 
+export function createDiscoveryV1Api(
+  contextName
+) {
+  const config =
+    getKubeConfigForContext(contextName);
+
+  return config.makeApiClient(
+    k8s.DiscoveryV1Api
+  );
+}
+
 
 export function createAutoscalingV2Api(
   contextName

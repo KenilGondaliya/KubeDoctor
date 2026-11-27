@@ -1,10 +1,30 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.middleware.js";
 import { db } from "../database/postgres.js";
+import { getKubeConfig } from "../config/kubernetes.js";
 
 const router = Router();
 
 router.use(authenticate);
+
+router.get("/contexts", (req, res, next) => {
+  try {
+    const kubeConfig = getKubeConfig();
+    res.json({
+      success: true,
+      data: {
+        contexts: kubeConfig.getContexts().map((context) => ({
+          name: context.name,
+          cluster: context.cluster,
+          user: context.user,
+        })),
+        currentContext: kubeConfig.getCurrentContext(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 async function resolveAccessibleCluster(userId, clusterId) {
   const result = await db.query(
@@ -64,12 +84,25 @@ async function listSnapshots(req, res, next, kind) {
       data: {
         clusterId: cluster.id,
         clusterName: cluster.name,
-        [kind ? kind.toLowerCase() : "resources"]: result.rows,
+        [kind ? collectionName(kind) : "resources"]: result.rows,
       },
     });
   } catch (error) {
     next(error);
   }
+}
+
+function collectionName(kind) {
+  const names = {
+    Namespace: "namespaces",
+    Pod: "pods",
+    Service: "services",
+    Deployment: "deployments",
+    Node: "nodes",
+    Event: "events",
+    EndpointSlice: "endpointSlices",
+  };
+  return names[kind] || "resources";
 }
 
 router.get("/namespaces", (req, res, next) => listSnapshots(req, res, next, "Namespace"));

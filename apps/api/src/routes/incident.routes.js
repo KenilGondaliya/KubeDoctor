@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.middleware.js";
 import { db } from "../database/postgres.js";
-import { createCoreV1Api, createAppsV1Api, createNetworkingV1Api } from "../config/kubernetes.js";
+import { createCoreV1Api, createAppsV1Api, createDiscoveryV1Api } from "../config/kubernetes.js";
 import { getNatsConnection, stringCodec } from "../config/nats.js";
 import { normalizeResourceEvent } from "../../../../packages/kubernetes-observer/src/normalizer.js";
 
@@ -74,15 +74,25 @@ router.post("/scan", async (req, res, next) => {
     const namespace = req.query.namespace || cluster.namespace || null;
     const core = createCoreV1Api(cluster.kube_context);
     const apps = createAppsV1Api(cluster.kube_context);
-    const networking = createNetworkingV1Api(cluster.kube_context);
+    const discovery = createDiscoveryV1Api(cluster.kube_context);
 
     const [pods, nodes, services, deployments, replicaSets, endpointSlices] = await Promise.all([
-      namespace ? core.listNamespacedPod(namespace) : core.listPodForAllNamespaces(),
+      namespace
+        ? core.listNamespacedPod({ namespace })
+        : core.listPodForAllNamespaces(),
       core.listNode(),
-      namespace ? core.listNamespacedService(namespace) : core.listServiceForAllNamespaces(),
-      namespace ? apps.listNamespacedDeployment(namespace) : apps.listDeploymentForAllNamespaces(),
-      namespace ? apps.listNamespacedReplicaSet(namespace) : apps.listReplicaSetForAllNamespaces(),
-      namespace ? networking.listNamespacedEndpointSlice(namespace) : networking.listEndpointSliceForAllNamespaces(),
+      namespace
+        ? core.listNamespacedService({ namespace })
+        : core.listServiceForAllNamespaces(),
+      namespace
+        ? apps.listNamespacedDeployment({ namespace })
+        : apps.listDeploymentForAllNamespaces(),
+      namespace
+        ? apps.listNamespacedReplicaSet({ namespace })
+        : apps.listReplicaSetForAllNamespaces(),
+      namespace
+        ? discovery.listNamespacedEndpointSlice({ namespace })
+        : discovery.listEndpointSliceForAllNamespaces(),
     ]);
 
     const collections = [
