@@ -69,7 +69,9 @@ export class Reconciler {
       deploymentsResponse?.body?.items ?? deploymentsResponse?.items ?? [];
 
     const replicaSetItems =
-      replicasetsResponse?.body?.items ?? replicasets?.items ?? [];
+      replicasetsResponse?.body?.items ??
+      replicasetsResponse?.items ??
+      [];
 
     const endpointSliceItems =
       endpointSlicesResponse?.body?.items ??

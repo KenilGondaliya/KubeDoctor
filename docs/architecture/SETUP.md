@@ -1,20 +1,29 @@
 # Local setup
 
 1. Start Docker Desktop.
-2. Start Minikube: `minikube start --driver=docker`
-3. Verify: `kubectl get nodes`
-4. From repo root run `npm install`.
-5. Start API: `npm run dev`
-6. Start web in another terminal: `npm run dev:web`
-7. Optional: start MongoDB locally. Set `MONGO_URI` in `apps/api/.env`.
-8. Visit the Vite URL shown in the terminal.
+2. From the repository root, start infrastructure:
+   `docker compose up -d`
+3. Apply migrations:
+   `npm run db:migrate`
+4. Install dependencies:
+   `npm install`
+5. Start Minikube:
+   `minikube start --driver=docker`
+6. Verify Kubernetes access:
+   `kubectl get nodes`
+7. Start the API:
+   `npm run dev:api`
+8. Start the observer:
+   `npm run dev:observer`
+9. Start the web dashboard:
+   `npm run dev:web`
+10. Open `http://127.0.0.1:5173/`.
+
+The API uses PostgreSQL, Redis, and NATS. Create or register an account in the dashboard, register the `minikube` context, then select **Scan cluster**.
 
 ## Test incidents
-From repo root:
-- `kubectl apply -f incidents/crash-loop/deployment.yaml`
-- `kubectl apply -f incidents/image-pull/deployment.yaml`
-- `kubectl apply -f incidents/pending/deployment.yaml`
-- `kubectl apply -f incidents/service-endpoint/deployment.yaml`
-- `kubectl apply -f incidents/probe-failure/deployment.yaml`
+Deploy workloads with Kubernetes manifests, then run **Scan cluster** from the dashboard or call the authenticated API:
 
-Then POST `/api/incidents/scan?namespace=default` to run the diagnostic scan.
+```text
+POST /api/v1/incidents/scan?clusterId=<cluster-id>&namespace=default
+```

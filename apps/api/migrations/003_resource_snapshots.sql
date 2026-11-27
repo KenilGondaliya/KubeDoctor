@@ -1,4 +1,4 @@
-CREATE TABLE resource_snapshots (
+CREATE TABLE IF NOT EXISTS resource_snapshots (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     cluster_id UUID NOT NULL
@@ -31,15 +31,15 @@ CREATE TABLE resource_snapshots (
 );
 
 
-CREATE INDEX idx_resource_snapshots_cluster
+CREATE INDEX IF NOT EXISTS idx_resource_snapshots_cluster
 ON resource_snapshots(cluster_id);
 
 
-CREATE INDEX idx_resource_snapshots_kind
+CREATE INDEX IF NOT EXISTS idx_resource_snapshots_kind
 ON resource_snapshots(cluster_id, kind);
 
 
-CREATE INDEX idx_resource_snapshots_namespace
+CREATE INDEX IF NOT EXISTS idx_resource_snapshots_namespace
 ON resource_snapshots(
     cluster_id,
     namespace

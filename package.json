@@ -10,7 +10,10 @@
   ],
   "scripts": {
     "dev:api": "npm --workspace apps/api run dev",
+    "dev:web": "npm --workspace apps/web run dev -- --host 127.0.0.1",
+    "dev:observer": "npm --workspace services/observer run dev",
     "start:api": "npm --workspace apps/api run start",
+    "db:migrate": "node apps/api/src/scripts/migrate.js",
     "test": "npm run test --workspaces"
   }
 }
